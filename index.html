@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 27.1 (Trwałe Emocje)</title>
+    <title>Robot AI 27.0 (Kreator Tożsamości)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -77,6 +77,7 @@
         let czasOstatniejAktywnosci = Date.now(); 
         let stanEmocji = 0; 
         
+        // --- MODUŁ PAMIĘCI TOŻSAMOŚCI ---
         let imieRobota = localStorage.getItem('robotImie') || null;
         let rolaRobota = localStorage.getItem('robotRola') || null;
         let trybKonfiguracji = false;
@@ -131,13 +132,13 @@
             
             setTimeout(uruchomWzrok, 500);
 
+            // LOGIKA PIERWSZEGO WŁĄCZENIA - PYTANIE O IMIĘ
             setTimeout(() => {
                 if (!imieRobota) {
                     trybKonfiguracji = true;
                     trybAktywny = true;
-                    stanEmocji = 3; 
-                    usta.className = 'usta emocja-zaskoczenie'; // Pokazuje otwarta buzie
-                    powiedz("Cześć! Jestem nowym robotem. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie');
+                    stanEmocji = 3; // Zaskoczenie
+                    powiedz("Cześć! Jestem nowym robotem z pustą pamięcią. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie');
                 } else {
                     stanSystemuTxt.innerText = `Powiedz '${imieRobota}' by wybudzić.`;
                 }
@@ -160,9 +161,8 @@
                         let cx = (box.xCenter !== undefined) ? box.xCenter : ((box.xMin || box.xmin || 0) + (box.width / 2));
                         let cy = (box.yCenter !== undefined) ? box.yCenter : ((box.yMin || box.ymin || 0) + (box.height / 2));
                         
-                      // Zwiększony mnożnik z 140 na 220 (oczy będą reagować mocniej na mniejszy ruch głową)
-docelowyX = Math.max(0, Math.min(180, Math.round(200 - (cx * 220)) + offsetX));
-docelowyY = Math.max(0, Math.min(180, Math.round(200 - (cy * 220)) + offsetY));
+                        docelowyX = Math.max(0, Math.min(180, Math.round(160 - (cx * 140)) + offsetX));
+                        docelowyY = Math.max(0, Math.min(180, Math.round(160 - (cy * 140)) + offsetY));
                         
                         ostatniX = docelowyX; ostatniY = docelowyY;
                         czasOstatniejTwarzy = teraz; widziKogos = true; czasOstatniejAktywnosci = teraz; 
@@ -190,9 +190,8 @@ docelowyY = Math.max(0, Math.min(180, Math.round(200 - (cy * 220)) + offsetY));
                     }
                 }
 
-            // Zwiększona dynamika - zmienione 0.15 na 0.40 (serwa szybciej dojadą do celu)
-glatkiX = glatkiX + (docelowyX - glatkiX) * 0.40;
-glatkiY = glatkiY + (docelowyY - glatkiY) * 0.40;
+                glatkiX = glatkiX + (docelowyX - glatkiX) * 0.15;
+                glatkiY = glatkiY + (docelowyY - glatkiY) * 0.15;
 
                 let w = 1; 
                 if (!trybAktywny) { w = 0; stanEmocji = 0; } 
@@ -242,6 +241,7 @@ glatkiY = glatkiY + (docelowyY - glatkiY) * 0.40;
                 
                 if (przetwarzanieWToku || czyMowi) return; 
 
+                // ZACHOWANIE PODCZAS PIERWSZEJ KONFIGURACJI
                 if (trybKonfiguracji) {
                     if (tekst.length < 3) return; 
                     przetwarzanieWToku = true;
@@ -250,7 +250,10 @@ glatkiY = glatkiY + (docelowyY - glatkiY) * 0.40;
                     return;
                 }
 
+                // BUDZENIE
                 if (!trybAktywny) {
+                    // System chwyta pierwsze 4 litery imienia (np. "stef" dla Stefana) aby uniknąć problemu z odmianą. 
+                    // Dodatkowo reaguje na uniwersalne hasła.
                     let bazoweImie = imieRobota ? imieRobota.toLowerCase().substring(0, 4) : "gien";
                     if (tekst.includes(bazoweImie) || tekst.includes("pobudka") || tekst.includes("obudź")) {
                         trybAktywny = true; stanEmocji = 1; usta.className = 'usta emocja-neutralny'; 
@@ -292,23 +295,23 @@ glatkiY = glatkiY + (docelowyY - glatkiY) * 0.40;
             let PROMPT = "";
 
             if (trybKonfiguracji) {
-                PROMPT = `Użytkownik włączył cię po raz pierwszy. Powiedział: "${pytanie}". 
-Ustal swoje imię i rolę na podstawie tego zdania.
-Odpowiedz na początku w formacie: [KONFIG: Imię | Rola]
-Po tym tagu przywitaj się ciepło. Na samym końcu dodaj tag emocji: [RADOSC].`;
+                PROMPT = `Użytkownik właśnie włączył cię po raz pierwszy. Powiedział: "${pytanie}". 
+Twoim zadaniem jest ustalić swoje nowe imię i swoją nową rolę na podstawie tego zdania.
+MUSISZ odpowiedzieć na samym początku w tym formacie: [KONFIG: Imię | Rola]
+Po tym tagu przywitaj się ciepło jako nowa postać! Na końcu dodaj tag emocji, np: [RADOSC].`;
             } else {
-                let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Pusta.";
+                let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Nie masz jeszcze żadnych specjalnych wspomnień zapisanych w bazie.";
                 
-                PROMPT = `Jesteś robotem. Masz na imię: ${imieRobota}. Rola: ${rolaRobota}. WIDZISZ obraz z kamery.
-Wspomnienia: ${wgranaPamiec}
+                PROMPT = `Jesteś robotem. Masz na imię: ${imieRobota}. Twoja rola i kim jesteś dla rozmówcy: ${rolaRobota}. WIDZISZ obraz z kamery. Jesteście w środku rozmowy!
+Oto rzeczy, które zapamiętałeś do tej pory: ${wgranaPamiec}
 
 ZASADY: 
-1. NIGDY się nie witaj. 
-2. Na pytania odpowiadaj krótko. 
-3. ZAPAMIĘTYWANIE: Dopisz [ZAPAMIETAJ: tresc] na początku, jeśli każą ci coś zapamiętać.
-4. ZAPOMINANIE: Dopisz [ZAPOMNIJ], jeśli każą ci zapomnieć.
-5. RESET TOŻSAMOŚCI: Jeśli powie "zresetuj ustawienia", dopisz: [FABRYKA].
-6. WYMÓG ABSOLUTNY: Na samym końcu odpowiedzi MUSISZ napisać JEDEN z tagów: [RADOSC], [ZASKOCZENIE], [SMUTEK] lub [NEUTRALNY]. Bez żadnych kropek na końcu tagu. 
+1. NIGDY się nie witaj. Odpowiadaj od razu (jako ${imieRobota}). 
+2. Na pytania odpowiadaj naturalnie i krótko (2-3 zdania). Jeśli prosi o BAJKĘ, opowiedz długą!
+3. ZAPAMIĘTYWANIE: Jeśli rozmówca każe ci coś zapamiętać, to na SAMYM POCZĄTKU wypowiedzi dopisz: [ZAPAMIETAJ: tresc].
+4. ZAPOMINANIE: Jeśli powie "zapomnij wszystko" lub "zapomnij wspomnienia", dopisz: [ZAPOMNIJ].
+5. RESET TOŻSAMOŚCI: Jeśli powie "zresetuj ustawienia", "zmień imię" albo "kim jesteś" i zażąda nowej tożsamości, dopisz: [FABRYKA].
+6. WYMÓG ABSOLUTNY: Na samym końcu swojej wypowiedzi MUSISZ dopisać jedną emocję, np: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY]. 
 Pytanie: ${pytanie}`;
             }
 
@@ -331,39 +334,53 @@ Pytanie: ${pytanie}`;
                         const data = await response.json();
                         let odp = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         if (odp) { 
+                            // 0. OBSŁUGA KONFIGURACJI (ZAPIS IMIENIA I ROLI)
                             let wykrKonfig = odp.match(/\[KONFIG:\s*(.*?)\s*\|\s*(.*?)\]/i);
                             if (wykrKonfig) {
-                                imieRobota = wykrKonfig[1].trim(); rolaRobota = wykrKonfig[2].trim();
-                                localStorage.setItem('robotImie', imieRobota); localStorage.setItem('robotRola', rolaRobota);
+                                imieRobota = wykrKonfig[1].trim();
+                                rolaRobota = wykrKonfig[2].trim();
+                                localStorage.setItem('robotImie', imieRobota);
+                                localStorage.setItem('robotRola', rolaRobota);
                                 trybKonfiguracji = false;
+                                console.log("Zapisano tożsamość: " + imieRobota + " jako " + rolaRobota);
                             }
 
+                            // 1. OBSŁUGA ZAPAMIĘTYWANIA WSPOMNIEŃ
                             let wykrPamiec = odp.match(/\[ZAPAMIETAJ:\s*(.*?)\]/i);
                             if (wykrPamiec) {
-                                let nowe = wykrPamiec[1].trim(); let obecna = localStorage.getItem('gienekPamiec') || "";
-                                localStorage.setItem('gienekPamiec', obecna + " " + nowe + ".");
+                                let noweWspomnienie = wykrPamiec[1].trim();
+                                let obecnaPamiec = localStorage.getItem('gienekPamiec') || "";
+                                localStorage.setItem('gienekPamiec', obecnaPamiec + " " + noweWspomnienie + ".");
+                                setTimeout(() => { stanSystemuTxt.innerText = "Trwale zapisałem to w pamięci!"; }, 500);
                             }
                             
-                            if (odp.includes('[ZAPOMNIJ]')) localStorage.removeItem('gienekPamiec');
+                            // 2. OBSŁUGA CZYSZCZENIA WSPOMNIEŃ
+                            if (odp.includes('[ZAPOMNIJ]')) {
+                                localStorage.removeItem('gienekPamiec');
+                                setTimeout(() => { stanSystemuTxt.innerText = "Sformatowałem wspomnienia!"; }, 500);
+                            }
 
+                            // 3. TWARDY RESET TOŻSAMOŚCI (FABRYKA)
                             if (odp.includes('[FABRYKA]')) {
-                                localStorage.removeItem('robotImie'); localStorage.removeItem('robotRola'); localStorage.removeItem('gienekPamiec');
-                                imieRobota = null; rolaRobota = null; trybKonfiguracji = true; 
+                                localStorage.removeItem('robotImie');
+                                localStorage.removeItem('robotRola');
+                                localStorage.removeItem('gienekPamiec');
+                                imieRobota = null; rolaRobota = null;
+                                trybKonfiguracji = true; // Wchodzi w tryb oczekiwania na nową tożsamość
                             }
 
-                            // Ulepszony radar wyłapujący emocje (łapie też polskie "Ś")
-                            let wykrEmocja = odp.match(/\[(RADOSC|RADOŚĆ|ZASKOCZENIE|SMUTEK|NEUTRALNY)\]/i);
-                            let klasaUsty = 'emocja-neutralny'; // Domyślnie na start mowy
-                            
-                            // JEŚLI AI WYSŁAŁO TAG EMOCJI, NADPISUJEMY STAN
+                            // 4. PARSOWANIE EMOCJI
+                            let wykrEmocja = odp.match(/\[(RADOSC|ZASKOCZENIE|SMUTEK|NEUTRALNY)\]/i);
+                            let klasaUsty = 'emocja-neutralny'; stanEmocji = 1;
+
                             if (wykrEmocja) {
                                 let em = wykrEmocja[1].toUpperCase();
-                                if (em === 'RADOSC' || em === 'RADOŚĆ') { klasaUsty = 'emocja-radosc'; stanEmocji = 2; }
+                                if (em === 'RADOSC') { klasaUsty = 'emocja-radosc'; stanEmocji = 2; }
                                 else if (em === 'ZASKOCZENIE') { klasaUsty = 'emocja-zaskoczenie'; stanEmocji = 3; }
                                 else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
-                                else { stanEmocji = 1; } // Neutralny
                             }
                             
+                            // 5. OCZYSZCZENIE TEKSTU Z ZNACZNIKÓW DLA SYNTEZATORA
                             let czystyTekst = odp.replace(/\[.*?\]/g, '').trim();
                             powiedz(czystyTekst, klasaUsty); 
                             udaloSie = true; break; 
@@ -381,10 +398,12 @@ Pytanie: ${pytanie}`;
         let interwalKlapania;
         function powiedz(tekst, klasaUsty = 'emocja-neutralny') {
             aktualnaWypowiedz = new SpeechSynthesisUtterance(tekst);
-            aktualnaWypowiedz.lang = 'pl-PL'; aktualnaWypowiedz.pitch = 1.0; aktualnaWypowiedz.rate = 0.95;  
+            aktualnaWypowiedz.lang = 'pl-PL'; 
+            aktualnaWypowiedz.pitch = 1.0; 
+            aktualnaWypowiedz.rate = 0.95;  
             
             czyMowi = true; 
-            stanSystemuTxt.innerText = "Emocja aktywna...";
+            if (!stanSystemuTxt.innerText.includes("zapisałem")) { stanSystemuTxt.innerText = (imieRobota || "Robot") + " opowiada..."; }
             
             usta.className = `usta ${klasaUsty}`;
             
@@ -411,9 +430,8 @@ Pytanie: ${pytanie}`;
             clearTimeout(bezpiecznikTTS); clearInterval(interwalKlapania); 
             usta.style.transform = 'scale(1)';
             
-            // UWAGA: TUTAJ BYŁ BŁĄD. TERAZ NIE RESETUJEMY EMOCJI! 
-            // Emocja (i usta) zostają na ekranie aż do pójścia spać lub kolejnej komendy.
-            if (!trybAktywny) { stanEmocji = 0; usta.className = 'usta spi'; }
+            if (trybAktywny) { stanEmocji = 1; usta.className = 'usta emocja-neutralny'; } 
+            else { stanEmocji = 0; usta.className = 'usta spi'; }
             
             czyMowi = false; czasOstatniejAktywnosci = Date.now(); 
             wznowNasluch();
