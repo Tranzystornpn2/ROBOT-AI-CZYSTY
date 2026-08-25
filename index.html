@@ -161,8 +161,8 @@
                         let cx = (box.xCenter !== undefined) ? box.xCenter : ((box.xMin || box.xmin || 0) + (box.width / 2));
                         let cy = (box.yCenter !== undefined) ? box.yCenter : ((box.yMin || box.ymin || 0) + (box.height / 2));
                         
-                        docelowyX = Math.max(0, Math.min(180, Math.round(160 - (cx * 140)) + offsetX));
-                        docelowyY = Math.max(0, Math.min(180, Math.round(160 - (cy * 140)) + offsetY));
+                       docelowyX = Math.max(0, Math.min(180, Math.round(200 - (cx * 220)) + offsetX));
+                       docelowyY = Math.max(0, Math.min(180, Math.round(200 - (cy * 220)) + offsetY));
                         
                         ostatniX = docelowyX; ostatniY = docelowyY;
                         czasOstatniejTwarzy = teraz; widziKogos = true; czasOstatniejAktywnosci = teraz; 
@@ -190,8 +190,8 @@
                     }
                 }
 
-                glatkiX = glatkiX + (docelowyX - glatkiX) * 0.15;
-                glatkiY = glatkiY + (docelowyY - glatkiY) * 0.15;
+                glatkiX = glatkiX + (docelowyX - glatkiX) * 0.40;
+                glatkiY = glatkiY + (docelowyY - glatkiY) * 0.40;
 
                 let w = 1; 
                 if (!trybAktywny) { w = 0; stanEmocji = 0; } 
