@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 27.0 (Kreator Tożsamości)</title>
+    <title>Robot AI 27.5 (Kreator + Wygaszacz)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -11,6 +11,10 @@
 
     <style>
         body { background: #050505; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Comic Sans MS', sans-serif; overflow: hidden; }
+        
+        /* --- WYGASZACZ EKRANU DO TRYBU SNU --- */
+        #wygaszacz { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9000; opacity: 0; transition: opacity 2.5s ease-in-out; pointer-events: none; }
+        
         #startBtn { padding: 20px 40px; font-size: 24px; font-weight: bold; background: #ff3b30; color: white; border: none; border-radius: 12px; cursor: pointer; z-index: 100;}
         video { position: absolute; opacity: 0.01; width: 10px; height: 10px; z-index: -100; pointer-events: none; }
         
@@ -32,6 +36,9 @@
     </style>
 </head>
 <body>
+
+    <!-- Ciemny koc zamykający ekran (wygaszacz) -->
+    <div id="wygaszacz"></div>
 
     <button id="ustawieniaBtn" onclick="pokazTrymer()">⚙️</button>
     <button id="startBtn" onclick="uruchomiOS()">OBUDŹ ROBOTA</button>
@@ -67,6 +74,7 @@
         const stanSystemuTxt = document.getElementById('stanSystemu');
         const mqttStatus = document.getElementById('mqttStatus');
         const videoElement = document.getElementById('webcam');
+        const wygaszacz = document.getElementById('wygaszacz');
 
         let mostRadiowy = null; let gotowyDoWysylania = false; let ostWysylka = 0;
         let rozpoznawanieMowy = null; let trybAktywny = false; let czyMowi = false;
@@ -137,6 +145,7 @@
                 if (!imieRobota) {
                     trybKonfiguracji = true;
                     trybAktywny = true;
+                    wygaszacz.style.opacity = '0'; // Rozjaśnienie ekranu
                     stanEmocji = 3; // Zaskoczenie
                     powiedz("Cześć! Jestem nowym robotem z pustą pamięcią. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie');
                 } else {
@@ -161,8 +170,9 @@
                         let cx = (box.xCenter !== undefined) ? box.xCenter : ((box.xMin || box.xmin || 0) + (box.width / 2));
                         let cy = (box.yCenter !== undefined) ? box.yCenter : ((box.yMin || box.ymin || 0) + (box.height / 2));
                         
-                       docelowyX = Math.max(0, Math.min(180, Math.round(200 - (cx * 220)) + offsetX));
-                       docelowyY = Math.max(0, Math.min(180, Math.round(200 - (cy * 220)) + offsetY));
+                        // ZOPTYMALIZOWANY RUCH: Mnożnik 170 (szersze pole), wygładzanie 0.25 poniżej
+                        docelowyX = Math.max(0, Math.min(180, Math.round(175 - (cx * 170)) + offsetX));
+                        docelowyY = Math.max(0, Math.min(180, Math.round(175 - (cy * 170)) + offsetY));
                         
                         ostatniX = docelowyX; ostatniY = docelowyY;
                         czasOstatniejTwarzy = teraz; widziKogos = true; czasOstatniejAktywnosci = teraz; 
@@ -183,15 +193,18 @@
                 }
 
                 if (trybAktywny && !czyMowi && !przetwarzanieWToku) {
+                    // Automatyczne uśpienie z Wygaszaczem Ekranu
                     if (teraz - czasOstatniejAktywnosci > 35000) { 
                         trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi';
                         stanSystemuTxt.innerText = "Brak aktywności. Idę spać...";
+                        wygaszacz.style.opacity = '1'; // Ekran powoli gaśnie na czarno
                         powiedz("Chyba nikogo nie ma! Zrobię sobie drzemkę, pa pa!");
                     }
                 }
 
-                glatkiX = glatkiX + (docelowyX - glatkiX) * 0.40;
-                glatkiY = glatkiY + (docelowyY - glatkiY) * 0.40;
+                // ZOPTYMALIZOWANE WYGŁADZANIE: szybsza reakcja (0.25)
+                glatkiX = glatkiX + (docelowyX - glatkiX) * 0.25;
+                glatkiY = glatkiY + (docelowyY - glatkiY) * 0.25;
 
                 let w = 1; 
                 if (!trybAktywny) { w = 0; stanEmocji = 0; } 
@@ -252,16 +265,17 @@
 
                 // BUDZENIE
                 if (!trybAktywny) {
-                    // System chwyta pierwsze 4 litery imienia (np. "stef" dla Stefana) aby uniknąć problemu z odmianą. 
-                    // Dodatkowo reaguje na uniwersalne hasła.
                     let bazoweImie = imieRobota ? imieRobota.toLowerCase().substring(0, 4) : "gien";
                     if (tekst.includes(bazoweImie) || tekst.includes("pobudka") || tekst.includes("obudź")) {
                         trybAktywny = true; stanEmocji = 1; usta.className = 'usta emocja-neutralny'; 
+                        wygaszacz.style.opacity = '0'; // Rozjaśnienie ekranu przy pobudce!
                         powiedz("Hej! Słucham was uważnie!");
                     }
                 } else {
+                    // USYPIANIE GŁOSOWE
                     if (tekst.includes("idź spać") || tekst.includes("wyłącz się") || tekst.includes("dobranoc")) {
                         trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi'; 
+                        wygaszacz.style.opacity = '1'; // Ekran powoli gaśnie na czarno
                         wyslijDoESP(90, 90, 0, 0); 
                         powiedz("Dobranoc, kolorowych snów!"); return;
                     }
@@ -334,7 +348,7 @@ Pytanie: ${pytanie}`;
                         const data = await response.json();
                         let odp = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         if (odp) { 
-                            // 0. OBSŁUGA KONFIGURACJI (ZAPIS IMIENIA I ROLI)
+                            // 0. OBSŁUGA KONFIGURACJI
                             let wykrKonfig = odp.match(/\[KONFIG:\s*(.*?)\s*\|\s*(.*?)\]/i);
                             if (wykrKonfig) {
                                 imieRobota = wykrKonfig[1].trim();
@@ -342,7 +356,6 @@ Pytanie: ${pytanie}`;
                                 localStorage.setItem('robotImie', imieRobota);
                                 localStorage.setItem('robotRola', rolaRobota);
                                 trybKonfiguracji = false;
-                                console.log("Zapisano tożsamość: " + imieRobota + " jako " + rolaRobota);
                             }
 
                             // 1. OBSŁUGA ZAPAMIĘTYWANIA WSPOMNIEŃ
@@ -366,7 +379,7 @@ Pytanie: ${pytanie}`;
                                 localStorage.removeItem('robotRola');
                                 localStorage.removeItem('gienekPamiec');
                                 imieRobota = null; rolaRobota = null;
-                                trybKonfiguracji = true; // Wchodzi w tryb oczekiwania na nową tożsamość
+                                trybKonfiguracji = true; 
                             }
 
                             // 4. PARSOWANIE EMOCJI
@@ -380,7 +393,7 @@ Pytanie: ${pytanie}`;
                                 else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
                             }
                             
-                            // 5. OCZYSZCZENIE TEKSTU Z ZNACZNIKÓW DLA SYNTEZATORA
+                            // 5. OCZYSZCZENIE TEKSTU Z ZNACZNIKÓW
                             let czystyTekst = odp.replace(/\[.*?\]/g, '').trim();
                             powiedz(czystyTekst, klasaUsty); 
                             udaloSie = true; break; 
