@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 28.5 (Agent + Wybudzanie)</title>
+    <title>Robot AI 29.0 (Agent Zegarowy)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -109,7 +109,6 @@
         }
         setTimeout(cyklMrugania, 2000);
 
-        // --- ZEGAR PODŚWIADOMOŚCI Z MOŻLIWOŚCIĄ WYBUDZANIA ---
         setInterval(() => {
             if (czyMowi) return; 
 
@@ -125,7 +124,7 @@
                     if (!trybAktywny) {
                         trybAktywny = true;
                         wygaszacz.style.opacity = '0';
-                        stanEmocji = 2; // Radość z pobudki
+                        stanEmocji = 2; 
                     }
                     powiedz(r.akcja, 'emocja-radosc');
                     cosWykonano = true;
@@ -198,18 +197,22 @@
                         ostatniX = docelowyX; ostatniY = docelowyY;
                         czasOstatniejTwarzy = teraz; widziKogos = true; czasOstatniejAktywnosci = teraz; 
 
-                        // --- REAKCJA WZROKOWA Z MOŻLIWOŚCIĄ WYBUDZANIA ---
+                        // 1. ZAWSZE WYBUDZAJ Z UŚPIENIA GDY WIDZI CZŁOWIEKA!
+                        if (!trybAktywny) {
+                            trybAktywny = true;
+                            wygaszacz.style.opacity = '0';
+                            stanEmocji = 1;
+                            stanSystemuTxt.innerText = "Widzę kogoś! Wybudzam...";
+                        }
+
+                        // 2. REGUŁY WZROKOWE (PODŚWIADOMOŚĆ)
                         if (!poprzednioWidzialKogos && (teraz - czasOstatniejReakcjiWzrokowej > 60000)) { 
                             let zapisaneReguly = JSON.parse(localStorage.getItem('gienekReguly') || "[]");
                             for (let r of zapisaneReguly) {
                                 if (r.warunek === "WZROK") {
                                     setTimeout(() => { 
                                         if(!czyMowi) {
-                                            if(!trybAktywny) {
-                                                trybAktywny = true;
-                                                wygaszacz.style.opacity = '0';
-                                                stanEmocji = 3; 
-                                            }
+                                            stanEmocji = 3; 
                                             powiedz(r.akcja, 'emocja-zaskoczenie'); 
                                         }
                                     }, 1000);
@@ -241,7 +244,6 @@
                         trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi';
                         stanSystemuTxt.innerText = "Brak aktywności. Idę spać...";
                         wygaszacz.style.opacity = '1'; 
-                        powiedz("Chyba nikogo nie ma. Zrobię sobie drzemkę!");
                     }
                 }
 
@@ -349,24 +351,24 @@ Przywitaj się! Na końcu dodaj tag emocji, np: [RADOSC].`;
             } else {
                 let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Brak.";
                 
-                // WSTRZYKNIĘCIE AKTUALNEGO CZASU DO MÓZGU AI
+                // MOCNE WSTRZYKNIĘCIE CZASU
                 let dataSystemowa = new Date();
                 let aktualnaGodzinaAI = dataSystemowa.getHours().toString().padStart(2, '0') + ":" + dataSystemowa.getMinutes().toString().padStart(2, '0');
+                let pelnyCzas = dataSystemowa.toLocaleString('pl-PL');
 
                 PROMPT = `Jesteś robotem. Masz na imię: ${imieRobota}. Twoja rola: ${rolaRobota}. WIDZISZ obraz z kamery.
 Wspomnienia: ${wgranaPamiec}
-UWAGA: Obecna godzina w systemie to ${aktualnaGodzinaAI}. Bierz to pod uwagę przy obliczaniu czasu.
 
 ZASADY: 
 1. NIGDY się nie witaj. Odpowiadaj od razu. 
-2. Na pytania odpowiadaj naturalnie i zwięźle.
+2. SYSTEM CZASU: Masz wbudowany zegar! Aktualna data i godzina to: ${pelnyCzas} (Sama godzina to: ${aktualnaGodzinaAI}). Jeśli użytkownik pyta o czas, ZAWSZE podawaj tę godzinę. NIE WOLNO CI twierdzić, że nie znasz czasu!
 3. ZAPAMIĘTYWANIE: [ZAPAMIETAJ: tresc].
 4. ZAPOMINANIE: Gdy powie "zapomnij wszystko" -> [ZAPOMNIJ].
 5. RESET: Gdy zażąda nowej tożsamości -> [FABRYKA].
-6. PROGRAMOWANIE ZADAŃ W TLE: Jeśli użytkownik prosi, byś coś zrobił pod pewnym warunkiem (np. o konkretnej godzinie lub jak kogoś zobaczy), wygeneruj tag JSON: 
-   - Czas (np. o 16:30): [REGULA: {"warunek": "CZAS", "wartosc": "16:30", "akcja": "Wyłącz lutownicę!"}] (Oblicz czas na podstawie aktualnej godziny ${aktualnaGodzinaAI})
+6. ZADANIA W TLE: Jeśli użytkownik prosi, byś coś zrobił pod pewnym warunkiem (np. o konkretnej godzinie lub jak kogoś zobaczy), WYGENERUJ JEDNOLINIJKOWY TAG JSON na samym początku odpowiedzi: 
+   - Czas (np. o 16:30): [REGULA: {"warunek": "CZAS", "wartosc": "16:30", "akcja": "Wyłącz lutownicę!"}]
    - Wzrok (np. jak kogoś zobaczysz): [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "Dzień dobry!"}]
-7. WYMÓG ABSOLUTNY: Na końcu dopisz emocję: [RADOSC], [ZASKOCZENIE], [SMUTEK] lub [NEUTRALNY]. 
+7. WYMÓG ABSOLUTNY: Na końcu dopisz jedną emocję: [RADOSC], [ZASKOCZENIE], [SMUTEK] lub [NEUTRALNY]. 
 Pytanie: ${pytanie}`;
             }
 
@@ -395,8 +397,8 @@ Pytanie: ${pytanie}`;
                                 trybKonfiguracji = false;
                             }
 
-                            // --- WYŁAPYWANIE PROGRAMOWANIA REGUŁ ---
-                            let wykrRegula = odp.match(/\[REGULA:\s*(\{.*?\})\s*\]/i);
+                            // POPRAWIONY WYKRYWACZ REGUŁ (Odporny na błędy nowej linii)
+                            let wykrRegula = odp.match(/\[REGULA:\s*(\{[\s\S]*?\})\s*\]/i);
                             if (wykrRegula) {
                                 try {
                                     let nowaRegula = JSON.parse(wykrRegula[1]);
@@ -435,7 +437,8 @@ Pytanie: ${pytanie}`;
                                 else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
                             }
                             
-                            let czystyTekst = odp.replace(/\[.*?\]/g, '').trim();
+                            // Bezpieczne kasowanie tagów konfiguracyjnych żeby robot tego nie przeczytał na głos
+                            let czystyTekst = odp.replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
                             powiedz(czystyTekst, klasaUsty); 
                             udaloSie = true; break; 
                         }
