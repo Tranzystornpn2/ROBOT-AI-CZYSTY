@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 29.0 (Agent Zegarowy)</title>
+    <title>Robot AI 29.1 (Agent Zegarowy - Poprawka Resetu)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -64,6 +64,7 @@
 
     <script>
         // ==========================================
+        // PAMIĘTAJ! PODMIEŃ TEN KLUCZ NA SWÓJ PRAWIDŁOWY (zaczynający się od AIza...)
         const SUROWY_KLUCZ = "AQ.Ab8RN6IKATwdcx-ZdUrRKY1OVUNdytqpoWBjpWhpYYVW3XsSzA";
         const GEMINI_KEY = SUROWY_KLUCZ.trim();
         // ==========================================
@@ -154,7 +155,7 @@
                 videoElement.srcObject = strumien;
             } catch(e) { }
 
-            if (GEMINI_KEY === "TUTAJ_WKLEJ_SWÓJ_KLUCZ" || GEMINI_KEY === "") {
+            if (GEMINI_KEY === "TUTAJ_WKLEJ_SWOJ_KLUCZ_AIza" || GEMINI_KEY === "") {
                 stanSystemuTxt.innerText = "BŁĄD: ZAPOMNIAŁEŚ KLUCZA API!";
                 stanSystemuTxt.style.color = "#ff3b30"; return;
             } 
@@ -197,7 +198,6 @@
                         ostatniX = docelowyX; ostatniY = docelowyY;
                         czasOstatniejTwarzy = teraz; widziKogos = true; czasOstatniejAktywnosci = teraz; 
 
-                        // 1. ZAWSZE WYBUDZAJ Z UŚPIENIA GDY WIDZI CZŁOWIEKA!
                         if (!trybAktywny) {
                             trybAktywny = true;
                             wygaszacz.style.opacity = '0';
@@ -205,7 +205,6 @@
                             stanSystemuTxt.innerText = "Widzę kogoś! Wybudzam...";
                         }
 
-                        // 2. REGUŁY WZROKOWE (PODŚWIADOMOŚĆ)
                         if (!poprzednioWidzialKogos && (teraz - czasOstatniejReakcjiWzrokowej > 60000)) { 
                             let zapisaneReguly = JSON.parse(localStorage.getItem('gienekReguly') || "[]");
                             for (let r of zapisaneReguly) {
@@ -345,13 +344,13 @@
             let PROMPT = "";
 
             if (trybKonfiguracji) {
+                // WZMOCNIONY PROMPT KONFIGURACYJNY
                 PROMPT = `Użytkownik włączył cię po raz pierwszy. Powiedział: "${pytanie}". 
-Odpisz: [KONFIG: Imię | Rola]
-Przywitaj się! Na końcu dodaj tag emocji, np: [RADOSC].`;
+WYMÓG ABSOLUTNY - ODPISZ DOKŁADNIE W TYM FORMACIE: [KONFIG: Imię | Rola]
+Po tagu przywitaj się ciepło i opisz swoją nową rolę. Na końcu dodaj tag emocji, np: [RADOSC].`;
             } else {
                 let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Brak.";
                 
-                // MOCNE WSTRZYKNIĘCIE CZASU
                 let dataSystemowa = new Date();
                 let aktualnaGodzinaAI = dataSystemowa.getHours().toString().padStart(2, '0') + ":" + dataSystemowa.getMinutes().toString().padStart(2, '0');
                 let pelnyCzas = dataSystemowa.toLocaleString('pl-PL');
@@ -361,11 +360,11 @@ Wspomnienia: ${wgranaPamiec}
 
 ZASADY: 
 1. NIGDY się nie witaj. Odpowiadaj od razu. 
-2. SYSTEM CZASU: Masz wbudowany zegar! Aktualna data i godzina to: ${pelnyCzas} (Sama godzina to: ${aktualnaGodzinaAI}). Jeśli użytkownik pyta o czas, ZAWSZE podawaj tę godzinę. NIE WOLNO CI twierdzić, że nie znasz czasu!
+2. SYSTEM CZASU: Masz wbudowany zegar! Aktualna data i godzina to: ${pelnyCzas} (Sama godzina to: ${aktualnaGodzinaAI}). ZAWSZE podawaj tę godzinę. NIE WOLNO CI twierdzić, że nie znasz czasu!
 3. ZAPAMIĘTYWANIE: [ZAPAMIETAJ: tresc].
 4. ZAPOMINANIE: Gdy powie "zapomnij wszystko" -> [ZAPOMNIJ].
-5. RESET: Gdy zażąda nowej tożsamości -> [FABRYKA].
-6. ZADANIA W TLE: Jeśli użytkownik prosi, byś coś zrobił pod pewnym warunkiem (np. o konkretnej godzinie lub jak kogoś zobaczy), WYGENERUJ JEDNOLINIJKOWY TAG JSON na samym początku odpowiedzi: 
+5. RESET TOŻSAMOŚCI: Gdy zażąda usunięcia tożsamości, zmiany imienia lub ustawień fabrycznych -> [FABRYKA].
+6. ZADANIA W TLE: Jeśli użytkownik prosi o akcję pod pewnym warunkiem, WYGENERUJ TAG JSON: 
    - Czas (np. o 16:30): [REGULA: {"warunek": "CZAS", "wartosc": "16:30", "akcja": "Wyłącz lutownicę!"}]
    - Wzrok (np. jak kogoś zobaczysz): [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "Dzień dobry!"}]
 7. WYMÓG ABSOLUTNY: Na końcu dopisz jedną emocję: [RADOSC], [ZASKOCZENIE], [SMUTEK] lub [NEUTRALNY]. 
@@ -390,6 +389,20 @@ Pytanie: ${pytanie}`;
                         const data = await response.json();
                         let odp = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         if (odp) { 
+                            // 1. ZMODYFIKOWANY SYSTEM RESETU (FABRYKA)
+                            if (odp.includes('[FABRYKA]')) {
+                                localStorage.removeItem('robotImie'); localStorage.removeItem('robotRola'); 
+                                localStorage.removeItem('gienekPamiec'); localStorage.removeItem('gienekReguly');
+                                imieRobota = null; rolaRobota = null; trybKonfiguracji = true; 
+                                
+                                // Wymuszamy natychmiastowe zapytanie głosowe o nowe dane!
+                                setTimeout(() => { 
+                                    stanEmocji = 3; 
+                                    powiedz("Tożsamość wykasowana! Cześć, jestem całkiem nowym robotem. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie'); 
+                                }, 800);
+                                return; // Przerywamy dalsze czytanie!
+                            }
+
                             let wykrKonfig = odp.match(/\[KONFIG:\s*(.*?)\s*\|\s*(.*?)\]/i);
                             if (wykrKonfig) {
                                 imieRobota = wykrKonfig[1].trim(); rolaRobota = wykrKonfig[2].trim();
@@ -397,7 +410,6 @@ Pytanie: ${pytanie}`;
                                 trybKonfiguracji = false;
                             }
 
-                            // POPRAWIONY WYKRYWACZ REGUŁ (Odporny na błędy nowej linii)
                             let wykrRegula = odp.match(/\[REGULA:\s*(\{[\s\S]*?\})\s*\]/i);
                             if (wykrRegula) {
                                 try {
@@ -421,12 +433,6 @@ Pytanie: ${pytanie}`;
                                 setTimeout(() => { stanSystemuTxt.innerText = "Wspomnienia i zadania usunięte!"; }, 500);
                             }
 
-                            if (odp.includes('[FABRYKA]')) {
-                                localStorage.removeItem('robotImie'); localStorage.removeItem('robotRola'); 
-                                localStorage.removeItem('gienekPamiec'); localStorage.removeItem('gienekReguly');
-                                imieRobota = null; rolaRobota = null; trybKonfiguracji = true; 
-                            }
-
                             let wykrEmocja = odp.match(/\[(RADOSC|ZASKOCZENIE|SMUTEK|NEUTRALNY)\]/i);
                             let klasaUsty = 'emocja-neutralny'; stanEmocji = 1;
 
@@ -437,7 +443,6 @@ Pytanie: ${pytanie}`;
                                 else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
                             }
                             
-                            // Bezpieczne kasowanie tagów konfiguracyjnych żeby robot tego nie przeczytał na głos
                             let czystyTekst = odp.replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
                             powiedz(czystyTekst, klasaUsty); 
                             udaloSie = true; break; 
