@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 28.0 (Autonomiczny Agent)</title>
+    <title>Robot AI 28.5 (Agent + Wybudzanie)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -12,7 +12,6 @@
     <style>
         body { background: #050505; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Comic Sans MS', sans-serif; overflow: hidden; }
         
-        /* --- WYGASZACZ EKRANU DO TRYBU SNU --- */
         #wygaszacz { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9000; opacity: 0; transition: opacity 2.5s ease-in-out; pointer-events: none; }
         
         #startBtn { padding: 20px 40px; font-size: 24px; font-weight: bold; background: #ff3b30; color: white; border: none; border-radius: 12px; cursor: pointer; z-index: 100;}
@@ -84,7 +83,6 @@
         let czasOstatniejAktywnosci = Date.now(); 
         let stanEmocji = 0; 
         
-        // --- MODUŁ PAMIĘCI TOŻSAMOŚCI I REGUL ---
         let imieRobota = localStorage.getItem('robotImie') || null;
         let rolaRobota = localStorage.getItem('robotRola') || null;
         let trybKonfiguracji = false;
@@ -100,7 +98,6 @@
         let mruga = false;
         let czasOstatniejKlatki = 0; 
         
-        // --- ZMIENNE DO PODŚWIADOMOŚCI WZROKU ---
         let poprzednioWidzialKogos = false;
         let czasOstatniejReakcjiWzrokowej = 0;
 
@@ -112,9 +109,9 @@
         }
         setTimeout(cyklMrugania, 2000);
 
-        // --- ZEGAR PODŚWIADOMOŚCI (REGUŁY CZASOWE) ---
+        // --- ZEGAR PODŚWIADOMOŚCI Z MOŻLIWOŚCIĄ WYBUDZANIA ---
         setInterval(() => {
-            if (!trybAktywny || czyMowi) return; 
+            if (czyMowi) return; 
 
             let teraz = new Date();
             let aktualnaGodzina = teraz.getHours().toString().padStart(2, '0') + ":" + teraz.getMinutes().toString().padStart(2, '0');
@@ -125,6 +122,11 @@
 
             for (let r of zapisaneReguly) {
                 if (r.warunek === "CZAS" && r.wartosc === aktualnaGodzina) {
+                    if (!trybAktywny) {
+                        trybAktywny = true;
+                        wygaszacz.style.opacity = '0';
+                        stanEmocji = 2; // Radość z pobudki
+                    }
                     powiedz(r.akcja, 'emocja-radosc');
                     cosWykonano = true;
                 } else {
@@ -155,8 +157,7 @@
 
             if (GEMINI_KEY === "TUTAJ_WKLEJ_SWÓJ_KLUCZ" || GEMINI_KEY === "") {
                 stanSystemuTxt.innerText = "BŁĄD: ZAPOMNIAŁEŚ KLUCZA API!";
-                stanSystemuTxt.style.color = "#ff3b30";
-                return;
+                stanSystemuTxt.style.color = "#ff3b30"; return;
             } 
 
             const unikalnyID = 'gienek_ios_' + Math.random().toString(16).substring(2, 10);
@@ -168,7 +169,7 @@
             setTimeout(() => {
                 if (!imieRobota) {
                     trybKonfiguracji = true; trybAktywny = true; wygaszacz.style.opacity = '0'; stanEmocji = 3; 
-                    powiedz("Cześć! Jestem nowym robotem z pustą pamięcią. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie');
+                    powiedz("Cześć! Jestem nowym robotem. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie');
                 } else {
                     stanSystemuTxt.innerText = `Powiedz '${imieRobota}' by wybudzić.`;
                 }
@@ -197,12 +198,21 @@
                         ostatniX = docelowyX; ostatniY = docelowyY;
                         czasOstatniejTwarzy = teraz; widziKogos = true; czasOstatniejAktywnosci = teraz; 
 
-                        // --- REAKCJA WZROKOWA Z REGUŁ (PODŚWIADOMOŚĆ) ---
+                        // --- REAKCJA WZROKOWA Z MOŻLIWOŚCIĄ WYBUDZANIA ---
                         if (!poprzednioWidzialKogos && (teraz - czasOstatniejReakcjiWzrokowej > 60000)) { 
                             let zapisaneReguly = JSON.parse(localStorage.getItem('gienekReguly') || "[]");
                             for (let r of zapisaneReguly) {
                                 if (r.warunek === "WZROK") {
-                                    setTimeout(() => { if(!czyMowi && trybAktywny) powiedz(r.akcja, 'emocja-zaskoczenie'); }, 1000);
+                                    setTimeout(() => { 
+                                        if(!czyMowi) {
+                                            if(!trybAktywny) {
+                                                trybAktywny = true;
+                                                wygaszacz.style.opacity = '0';
+                                                stanEmocji = 3; 
+                                            }
+                                            powiedz(r.akcja, 'emocja-zaskoczenie'); 
+                                        }
+                                    }, 1000);
                                     czasOstatniejReakcjiWzrokowej = teraz;
                                     break;
                                 }
@@ -211,7 +221,7 @@
                     } catch(e) {}
                 }
 
-                poprzednioWidzialKogos = widziKogos; // Zapisujemy stan na następną klatkę
+                poprzednioWidzialKogos = widziKogos;
 
                 if (!widziKogos) {
                     if (teraz - czasOstatniejTwarzy < 2000) { docelowyX = ostatniX; docelowyY = ostatniY; } 
@@ -231,7 +241,7 @@
                         trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi';
                         stanSystemuTxt.innerText = "Brak aktywności. Idę spać...";
                         wygaszacz.style.opacity = '1'; 
-                        powiedz("Chyba nikogo nie ma! Zrobię sobie drzemkę, pa pa!");
+                        powiedz("Chyba nikogo nie ma. Zrobię sobie drzemkę!");
                     }
                 }
 
@@ -304,7 +314,7 @@
                     if (tekst.includes("idź spać") || tekst.includes("wyłącz się") || tekst.includes("dobranoc")) {
                         trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi'; 
                         wygaszacz.style.opacity = '1'; wyslijDoESP(90, 90, 0, 0); 
-                        powiedz("Dobranoc, kolorowych snów!"); return;
+                        powiedz("Dobranoc, idę spać!"); return;
                     }
 
                     if (tekst.length < 3) return; 
@@ -338,19 +348,25 @@ Odpisz: [KONFIG: Imię | Rola]
 Przywitaj się! Na końcu dodaj tag emocji, np: [RADOSC].`;
             } else {
                 let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Brak.";
+                
+                // WSTRZYKNIĘCIE AKTUALNEGO CZASU DO MÓZGU AI
+                let dataSystemowa = new Date();
+                let aktualnaGodzinaAI = dataSystemowa.getHours().toString().padStart(2, '0') + ":" + dataSystemowa.getMinutes().toString().padStart(2, '0');
+
                 PROMPT = `Jesteś robotem. Masz na imię: ${imieRobota}. Twoja rola: ${rolaRobota}. WIDZISZ obraz z kamery.
 Wspomnienia: ${wgranaPamiec}
+UWAGA: Obecna godzina w systemie to ${aktualnaGodzinaAI}. Bierz to pod uwagę przy obliczaniu czasu.
 
 ZASADY: 
-1. NIGDY się nie witaj. Odpowiadaj od razu (jako ${imieRobota}). 
+1. NIGDY się nie witaj. Odpowiadaj od razu. 
 2. Na pytania odpowiadaj naturalnie i zwięźle.
 3. ZAPAMIĘTYWANIE: [ZAPAMIETAJ: tresc].
-4. ZAPOMINANIE (WSPOMNIEŃ I REGUŁ): Gdy powie "zapomnij wszystko" -> [ZAPOMNIJ].
-5. RESET TOŻSAMOŚCI: Gdy zażąda nowej tożsamości -> [FABRYKA].
-6. PROGRAMOWANIE ZADAŃ W TLE: Jeśli użytkownik prosi, byś coś zrobił POD PEWNYM WARUNKIEM, wygeneruj specjalny tag JSON na początku: 
-   - Czas (np. przypomnij o 16:00): [REGULA: {"warunek": "CZAS", "wartosc": "16:00", "akcja": "Wyłącz lutownicę!"}]
-   - Wzrok (np. jak kogoś zobaczysz): [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "Dzień dobry, witamy w serwisie!"}]
-7. WYMÓG ABSOLUTNY: Na końcu dopisz jedną emocję: [RADOSC], [ZASKOCZENIE], [SMUTEK] lub [NEUTRALNY]. 
+4. ZAPOMINANIE: Gdy powie "zapomnij wszystko" -> [ZAPOMNIJ].
+5. RESET: Gdy zażąda nowej tożsamości -> [FABRYKA].
+6. PROGRAMOWANIE ZADAŃ W TLE: Jeśli użytkownik prosi, byś coś zrobił pod pewnym warunkiem (np. o konkretnej godzinie lub jak kogoś zobaczy), wygeneruj tag JSON: 
+   - Czas (np. o 16:30): [REGULA: {"warunek": "CZAS", "wartosc": "16:30", "akcja": "Wyłącz lutownicę!"}] (Oblicz czas na podstawie aktualnej godziny ${aktualnaGodzinaAI})
+   - Wzrok (np. jak kogoś zobaczysz): [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "Dzień dobry!"}]
+7. WYMÓG ABSOLUTNY: Na końcu dopisz emocję: [RADOSC], [ZASKOCZENIE], [SMUTEK] lub [NEUTRALNY]. 
 Pytanie: ${pytanie}`;
             }
 
@@ -399,7 +415,7 @@ Pytanie: ${pytanie}`;
                             
                             if (odp.includes('[ZAPOMNIJ]')) {
                                 localStorage.removeItem('gienekPamiec');
-                                localStorage.removeItem('gienekReguly'); // Usuwa również reguły tła
+                                localStorage.removeItem('gienekReguly');
                                 setTimeout(() => { stanSystemuTxt.innerText = "Wspomnienia i zadania usunięte!"; }, 500);
                             }
 
@@ -419,7 +435,6 @@ Pytanie: ${pytanie}`;
                                 else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
                             }
                             
-                            // To wyrażenie usuwa WSZYSTKIE tagi w nawiasach (w tym JSONy i reguły), żeby Gienek czytał tylko tekst
                             let czystyTekst = odp.replace(/\[.*?\]/g, '').trim();
                             powiedz(czystyTekst, klasaUsty); 
                             udaloSie = true; break; 
