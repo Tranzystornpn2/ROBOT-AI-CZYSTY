@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 29.0 (Agent Zegarowy)</title>
+    <title>Robot AI 30.0 (Agent + WhatsApp)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -64,8 +64,13 @@
 
     <script>
         // ==========================================
+        // 1. UZUPEŁNIJ KLUCZ GEMINI
         const SUROWY_KLUCZ = "AQ.Ab8RN6IKATwdcx-ZdUrRKY1OVUNdytqpoWBjpWhpYYVW3XsSzA";
         const GEMINI_KEY = SUROWY_KLUCZ.trim();
+        
+        // 2. UZUPEŁNIJ DANE DO WHATSAPP (CALLMEBOT)
+        const NUMER_TELEFONU = "+48661082325"; 
+        const WHATSAPP_API_KEY = "1958833";
         // ==========================================
 
         const usta = document.getElementById('ustaGienka');
@@ -103,6 +108,18 @@
 
         const dostepneModele = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
 
+        function wyslijWhatsApp(tresc) {
+            if (NUMER_TELEFONU.includes("TwójNumer") || WHATSAPP_API_KEY.includes("KluczOdBota")) {
+                console.log("Błąd: Nie skonfigurowano WhatsApp API w kodzie."); return;
+            }
+            let zakodowanaTresc = encodeURIComponent(tresc);
+            let url = `https://api.callmebot.com/whatsapp.php?phone=${NUMER_TELEFONU}&text=${zakodowanaTresc}&apikey=${WHATSAPP_API_KEY}`;
+            
+            fetch(url).then(response => {
+                if (response.ok) setTimeout(() => { stanSystemuTxt.innerText = "WhatsApp wysłany!"; }, 500);
+            }).catch(e => console.log("Błąd WhatsApp", e));
+        }
+
         function cyklMrugania() {
             if (trybAktywny && !czyMowi) { mruga = true; setTimeout(() => { mruga = false; }, 150); }
             setTimeout(cyklMrugania, Math.random() * 3000 + 1500); 
@@ -126,7 +143,15 @@
                         wygaszacz.style.opacity = '0';
                         stanEmocji = 2; 
                     }
-                    powiedz(r.akcja, 'emocja-radosc');
+                    
+                    // Ekstrakcja WhatsApp z akcji reguły
+                    let akcja = r.akcja;
+                    let wykrWa = akcja.match(/\[WHATSAPP:\s*"?([^\]]+?)"?\]/i);
+                    if (wykrWa) wyslijWhatsApp(wykrWa[1].trim());
+                    
+                    let czystyTekst = akcja.replace(/\[WHATSAPP:.*?\]/ig, '').trim();
+                    if(czystyTekst) powiedz(czystyTekst, 'emocja-radosc');
+                    
                     cosWykonano = true;
                 } else {
                     pozostaleReguly.push(r);
@@ -197,7 +222,6 @@
                         ostatniX = docelowyX; ostatniY = docelowyY;
                         czasOstatniejTwarzy = teraz; widziKogos = true; czasOstatniejAktywnosci = teraz; 
 
-                        // 1. ZAWSZE WYBUDZAJ Z UŚPIENIA GDY WIDZI CZŁOWIEKA!
                         if (!trybAktywny) {
                             trybAktywny = true;
                             wygaszacz.style.opacity = '0';
@@ -205,7 +229,6 @@
                             stanSystemuTxt.innerText = "Widzę kogoś! Wybudzam...";
                         }
 
-                        // 2. REGUŁY WZROKOWE (PODŚWIADOMOŚĆ)
                         if (!poprzednioWidzialKogos && (teraz - czasOstatniejReakcjiWzrokowej > 60000)) { 
                             let zapisaneReguly = JSON.parse(localStorage.getItem('gienekReguly') || "[]");
                             for (let r of zapisaneReguly) {
@@ -213,7 +236,13 @@
                                     setTimeout(() => { 
                                         if(!czyMowi) {
                                             stanEmocji = 3; 
-                                            powiedz(r.akcja, 'emocja-zaskoczenie'); 
+                                            // Ekstrakcja WhatsApp z akcji reguły
+                                            let akcja = r.akcja;
+                                            let wykrWa = akcja.match(/\[WHATSAPP:\s*"?([^\]]+?)"?\]/i);
+                                            if (wykrWa) wyslijWhatsApp(wykrWa[1].trim());
+                                            
+                                            let czystyTekst = akcja.replace(/\[WHATSAPP:.*?\]/ig, '').trim();
+                                            if(czystyTekst) powiedz(czystyTekst, 'emocja-zaskoczenie'); 
                                         }
                                     }, 1000);
                                     czasOstatniejReakcjiWzrokowej = teraz;
@@ -351,7 +380,6 @@ Przywitaj się! Na końcu dodaj tag emocji, np: [RADOSC].`;
             } else {
                 let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Brak.";
                 
-                // MOCNE WSTRZYKNIĘCIE CZASU
                 let dataSystemowa = new Date();
                 let aktualnaGodzinaAI = dataSystemowa.getHours().toString().padStart(2, '0') + ":" + dataSystemowa.getMinutes().toString().padStart(2, '0');
                 let pelnyCzas = dataSystemowa.toLocaleString('pl-PL');
@@ -361,14 +389,15 @@ Wspomnienia: ${wgranaPamiec}
 
 ZASADY: 
 1. NIGDY się nie witaj. Odpowiadaj od razu. 
-2. SYSTEM CZASU: Masz wbudowany zegar! Aktualna data i godzina to: ${pelnyCzas} (Sama godzina to: ${aktualnaGodzinaAI}). Jeśli użytkownik pyta o czas, ZAWSZE podawaj tę godzinę. NIE WOLNO CI twierdzić, że nie znasz czasu!
+2. SYSTEM CZASU: Masz wbudowany zegar! Obecny czas to: ${pelnyCzas} (Sama godzina: ${aktualnaGodzinaAI}). ZAWSZE podawaj ten czas.
 3. ZAPAMIĘTYWANIE: [ZAPAMIETAJ: tresc].
 4. ZAPOMINANIE: Gdy powie "zapomnij wszystko" -> [ZAPOMNIJ].
 5. RESET: Gdy zażąda nowej tożsamości -> [FABRYKA].
-6. ZADANIA W TLE: Jeśli użytkownik prosi, byś coś zrobił pod pewnym warunkiem (np. o konkretnej godzinie lub jak kogoś zobaczy), WYGENERUJ JEDNOLINIJKOWY TAG JSON na samym początku odpowiedzi: 
-   - Czas (np. o 16:30): [REGULA: {"warunek": "CZAS", "wartosc": "16:30", "akcja": "Wyłącz lutownicę!"}]
-   - Wzrok (np. jak kogoś zobaczysz): [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "Dzień dobry!"}]
-7. WYMÓG ABSOLUTNY: Na końcu dopisz jedną emocję: [RADOSC], [ZASKOCZENIE], [SMUTEK] lub [NEUTRALNY]. 
+6. ZADANIA W TLE: Jeśli użytkownik prosi o akcję w tle (np. o konkretnej godzinie lub jak kogoś zobaczy), WYGENERUJ TAG JSON: 
+   - Czas: [REGULA: {"warunek": "CZAS", "wartosc": "16:30", "akcja": "Wyłącz lutownicę!"}]
+   - Wzrok: [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "Dzień dobry!"}]
+7. WHATSAPP: Jeśli masz wysłać WhatsAppa TERAZ, użyj tagu [WHATSAPP: "tresc"]. Jeśli WhatsApp ma być wysłany W PRZYSZŁOŚCI (z reguły), wstaw ten tag DO ŚRODKA parametru "akcja", np.: [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "[WHATSAPP: Ktoś wszedł!] Witamy!"}]
+8. WYMÓG ABSOLUTNY: Na końcu dopisz emocję: [RADOSC], [ZASKOCZENIE], [SMUTEK] lub [NEUTRALNY]. 
 Pytanie: ${pytanie}`;
             }
 
@@ -397,7 +426,6 @@ Pytanie: ${pytanie}`;
                                 trybKonfiguracji = false;
                             }
 
-                            // POPRAWIONY WYKRYWACZ REGUŁ (Odporny na błędy nowej linii)
                             let wykrRegula = odp.match(/\[REGULA:\s*(\{[\s\S]*?\})\s*\]/i);
                             if (wykrRegula) {
                                 try {
@@ -407,6 +435,12 @@ Pytanie: ${pytanie}`;
                                     localStorage.setItem('gienekReguly', JSON.stringify(zapisaneReguly));
                                     setTimeout(() => { stanSystemuTxt.innerText = "Zaprogramowano zadanie w tle!"; }, 500);
                                 } catch(e) { }
+                            }
+                            
+                            // Wyłapywanie bezpośredniego WhatsAppa
+                            let wykrWa = odp.match(/\[WHATSAPP:\s*"?([^\]]+?)"?\]/i);
+                            if (wykrWa) {
+                                wyslijWhatsApp(wykrWa[1].trim());
                             }
 
                             let wykrPamiec = odp.match(/\[ZAPAMIETAJ:\s*(.*?)\]/i);
@@ -437,9 +471,9 @@ Pytanie: ${pytanie}`;
                                 else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
                             }
                             
-                            // Bezpieczne kasowanie tagów konfiguracyjnych żeby robot tego nie przeczytał na głos
-                            let czystyTekst = odp.replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
-                            powiedz(czystyTekst, klasaUsty); 
+                            // Całkowite wyczyszczenie tekstu z wszelkich tagów dla syntezatora
+                            let czystyTekst = odp.replace(/\[WHATSAPP:[\s\S]*?\]/ig, '').replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
+                            if (czystyTekst) powiedz(czystyTekst, klasaUsty); 
                             udaloSie = true; break; 
                         }
                     } else {
