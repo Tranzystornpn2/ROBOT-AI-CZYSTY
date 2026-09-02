@@ -373,7 +373,7 @@ Po tym tagu przywitaj się ciepło jako nowa postać! Na końcu dodaj tag emocji
                 // SKŁADAMY KRÓTKĄ HISTORIĘ ROZMOWY
                 let krotkaHistoria = historiaRozmowy.length > 0 ? historiaRozmowy.join("\\n") : "Brak (dopiero zaczynacie rozmowę).";
 
-                PROMPT = `[UKRYTA INFORMACJA SYSTEMOWA: Obecna godzina to ${aktualnaGodzinaAI}]
+ PROMPT = `[UKRYTA INFORMACJA SYSTEMOWA: Obecna godzina to ${aktualnaGodzinaAI}]
 Jesteś robotem. Masz na imię: ${imieRobota}. Twoja rola: ${rolaRobota}. WIDZISZ obraz z kamery.
 
 WSPOMNIENIA TRWAŁE: ${wgranaPamiec}
@@ -383,7 +383,7 @@ ${krotkaHistoria}
 
 ZASADY: 
 1. Odpowiadaj bezpośrednio do rzeczy. NIE WSPOMINAJ o obecnej godzinie, chyba że użytkownik wyraźnie zapyta, która jest! 
-2. NIE OBIECUJ, że coś zaraz sprawdzisz w tle lub zrobisz za chwilę. Odpowiadaj tylko z wiedzy, którą masz TERAZ. Jesteś robotem na żywo, nie masz przeglądarki internetowej.
+2. MASZ POTĘŻNĄ WIEDZĘ: Twój mózg jest podłączony do ogromnej bazy danych chmury Google. Odpowiadaj na pytania od razu. NIGDY nie obiecuj, że coś "sprawdzisz w internecie za chwilę" i NIGDY nie mów, że nie masz dostępu do internetu. Odpowiadaj tu i teraz!
 3. Na pytania odpowiadaj naturalnie i krótko (2-3 zdania).
 4. ZAPAMIĘTYWANIE: Jeśli rozmówca każe ci coś trwale zapamiętać -> [ZAPAMIETAJ: tresc].
 5. ZAPOMINANIE: Jeśli każe ci wyczyścić pamięć i wspomnienia -> [ZAPOMNIJ].
