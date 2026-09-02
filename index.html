@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 29.5 (Czysty Agent Zegarowy)</title>
+    <title>Robot AI 29.7 (Agent Kontekstowy)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -12,7 +12,6 @@
     <style>
         body { background: #050505; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Comic Sans MS', sans-serif; overflow: hidden; }
         
-        /* --- WYGASZACZ EKRANU DO TRYBU SNU --- */
         #wygaszacz { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9000; opacity: 0; transition: opacity 2.5s ease-in-out; pointer-events: none; }
         
         #startBtn { padding: 20px 40px; font-size: 24px; font-weight: bold; background: #ff3b30; color: white; border: none; border-radius: 12px; cursor: pointer; z-index: 100;}
@@ -66,7 +65,7 @@
 
     <script>
         // ==========================================
-        const SUROWY_KLUCZ = "AQ.Ab8RN6IKATwdcx-ZdUrRKY1OVUNdytqpoWBjpWhpYYVW3XsSzA"; // PAMIĘTAJ! Klucz AIza... lub AQ...
+        const SUROWY_KLUCZ = "AQ.Ab8RN6IKATwdcx-ZdUrRKY1OVUNdytqpoWBjpWhpYYVW3XsSzA"; // PAMIĘTAJ! Klucz AIza...
         const GEMINI_KEY = SUROWY_KLUCZ.trim();
         // ==========================================
 
@@ -85,10 +84,13 @@
         let czasOstatniejAktywnosci = Date.now(); 
         let stanEmocji = 0; 
         
-        // --- MODUŁ PAMIĘCI TOŻSAMOŚCI ---
+        // --- MODUŁ PAMIĘCI TOŻSAMOŚCI I KRÓTKIEJ HISTORII ---
         let imieRobota = localStorage.getItem('robotImie') || null;
         let rolaRobota = localStorage.getItem('robotRola') || null;
         let trybKonfiguracji = false;
+        
+        // PAMIĘĆ KRÓTKOTRWAŁA (Kontekst rozmowy)
+        let historiaRozmowy = []; 
         
         let offsetX = parseInt(localStorage.getItem('gienekOffsetX')) || 0;
         let offsetY = parseInt(localStorage.getItem('gienekOffsetY')) || 0;
@@ -250,7 +252,6 @@
                         trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi';
                         stanSystemuTxt.innerText = "Brak aktywności. Idę spać...";
                         wygaszacz.style.opacity = '1'; // Ekran powoli gaśnie na czarno
-                        powiedz("Chyba nikogo nie ma! Zrobię sobie drzemkę, pa pa!");
                     }
                 }
 
@@ -329,7 +330,7 @@
                         trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi'; 
                         wygaszacz.style.opacity = '1'; // Ekran powoli gaśnie na czarno
                         wyslijDoESP(90, 90, 0, 0); 
-                        powiedz("Dobranoc, kolorowych snów!"); return;
+                        powiedz("Dobranoc, idę spać!"); return;
                     }
 
                     if (tekst.length < 3) return; 
@@ -364,26 +365,35 @@ Twoim zadaniem jest ustalić swoje nowe imię i swoją nową rolę na podstawie 
 MUSISZ odpowiedzieć na samym początku w tym formacie: [KONFIG: Imię | Rola]
 Po tym tagu przywitaj się ciepło jako nowa postać! Na końcu dodaj tag emocji, np: [RADOSC].`;
             } else {
-                let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Nie masz jeszcze żadnych specjalnych wspomnień zapisanych w bazie.";
+                let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Brak ważnych wspomnień.";
                 
                 let dataSystemowa = new Date();
                 let aktualnaGodzinaAI = dataSystemowa.getHours().toString().padStart(2, '0') + ":" + dataSystemowa.getMinutes().toString().padStart(2, '0');
 
+                // SKŁADAMY KRÓTKĄ HISTORIĘ ROZMOWY
+                let krotkaHistoria = historiaRozmowy.length > 0 ? historiaRozmowy.join("\\n") : "Brak (dopiero zaczynacie rozmowę).";
+
                 PROMPT = `[UKRYTA INFORMACJA SYSTEMOWA: Obecna godzina to ${aktualnaGodzinaAI}]
-Jesteś robotem. Masz na imię: ${imieRobota}. Twoja rola i kim jesteś dla rozmówcy: ${rolaRobota}. WIDZISZ obraz z kamery. Jesteście w środku rozmowy!
-Oto rzeczy, które zapamiętałeś do tej pory: ${wgranaPamiec}
+Jesteś robotem. Masz na imię: ${imieRobota}. Twoja rola: ${rolaRobota}. WIDZISZ obraz z kamery.
+
+WSPOMNIENIA TRWAŁE: ${wgranaPamiec}
+
+OSTATNIE ZDANIA W ROZMOWIE (PAMIĘĆ KRÓTKOTRWAŁA):
+${krotkaHistoria}
 
 ZASADY: 
-1. NIGDY się nie witaj. Odpowiadaj od razu (jako ${imieRobota}). ZAKAZUJĘ CI wspominać o tym, która jest godzina, chyba że użytkownik o to wyraźnie zapyta!
-2. Na pytania odpowiadaj naturalnie i krótko (2-3 zdania). Jeśli prosi o BAJKĘ, opowiedz długą!
-3. ZAPAMIĘTYWANIE: Jeśli rozmówca każe ci coś zapamiętać, to na SAMYM POCZĄTKU wypowiedzi dopisz: [ZAPAMIETAJ: tresc].
-4. ZAPOMINANIE: Jeśli powie "zapomnij wszystko" lub "zapomnij wspomnienia", dopisz: [ZAPOMNIJ].
-5. RESET TOŻSAMOŚCI: Jeśli powie "zresetuj ustawienia", "zmień imię" albo "kim jesteś" i zażąda nowej tożsamości, dopisz: [FABRYKA].
-6. ZADANIA W TLE: Jeśli użytkownik prosi, byś coś zrobił pod pewnym warunkiem (np. o konkretnej godzinie lub jak kogoś zobaczy), WYGENERUJ JEDNOLINIJKOWY TAG JSON na samym początku odpowiedzi: 
-   - Czas (np. o 16:30): [REGULA: {"warunek": "CZAS", "wartosc": "16:30", "akcja": "Wyłącz lutownicę!"}]
-   - Wzrok (np. jak kogoś zobaczysz): [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "Dzień dobry!"}]
-7. WYMÓG ABSOLUTNY: Na samym końcu swojej wypowiedzi MUSISZ dopisać jedną emocję, np: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY]. 
-Pytanie: ${pytanie}`;
+1. Odpowiadaj bezpośrednio do rzeczy. NIE WSPOMINAJ o obecnej godzinie, chyba że użytkownik wyraźnie zapyta, która jest! 
+2. NIE OBIECUJ, że coś zaraz sprawdzisz w tle lub zrobisz za chwilę. Odpowiadaj tylko z wiedzy, którą masz TERAZ. Jesteś robotem na żywo, nie masz przeglądarki internetowej.
+3. Na pytania odpowiadaj naturalnie i krótko (2-3 zdania).
+4. ZAPAMIĘTYWANIE: Jeśli rozmówca każe ci coś trwale zapamiętać -> [ZAPAMIETAJ: tresc].
+5. ZAPOMINANIE: Jeśli każe ci wyczyścić pamięć i wspomnienia -> [ZAPOMNIJ].
+6. RESET TOŻSAMOŚCI: Jeśli każe zresetować ustawienia lub zmienić twoje imię -> [FABRYKA].
+7. ZADANIA W TLE: Jeśli prosi o ustawienie budzika lub akcji na widok kogoś: 
+   - Czas: [REGULA: {"warunek": "CZAS", "wartosc": "16:30", "akcja": "Wyłącz lutownicę!"}]
+   - Wzrok: [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "Dzień dobry!"}]
+8. WYMÓG ABSOLUTNY: Na końcu swojej wypowiedzi MUSISZ dopisać emocję, np: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY]. 
+
+Teraz odpowiedz na najnowszą wypowiedź użytkownika: ${pytanie}`;
             }
 
             let czesciWiadomosci = [{ text: PROMPT }];
@@ -405,7 +415,7 @@ Pytanie: ${pytanie}`;
                         const data = await response.json();
                         let odp = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         if (odp) { 
-                            // 0. TWARDY RESET TOŻSAMOŚCI (FABRYKA) - POPRAWIONY
+                            // 0. TWARDY RESET TOŻSAMOŚCI (FABRYKA)
                             if (odp.includes('[FABRYKA]')) {
                                 localStorage.removeItem('robotImie');
                                 localStorage.removeItem('robotRola');
@@ -413,6 +423,7 @@ Pytanie: ${pytanie}`;
                                 localStorage.removeItem('gienekReguly');
                                 imieRobota = null; rolaRobota = null;
                                 trybKonfiguracji = true; 
+                                historiaRozmowy = []; // Czyścimy też krótką historię!
                                 
                                 setTimeout(() => { 
                                     stanEmocji = 3; 
@@ -456,6 +467,7 @@ Pytanie: ${pytanie}`;
                             if (odp.includes('[ZAPOMNIJ]')) {
                                 localStorage.removeItem('gienekPamiec');
                                 localStorage.removeItem('gienekReguly');
+                                historiaRozmowy = [];
                                 setTimeout(() => { stanSystemuTxt.innerText = "Sformatowałem wspomnienia i przypomnienia!"; }, 500);
                             }
 
@@ -470,8 +482,16 @@ Pytanie: ${pytanie}`;
                                 else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
                             }
                             
-                            // 6. OCZYSZCZENIE TEKSTU Z ZNACZNIKÓW (Bezpieczne czytanie)
+                            // 6. OCZYSZCZENIE TEKSTU Z ZNACZNIKÓW
                             let czystyTekst = odp.replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
+                            
+                            // ZAPIS DO HISTORII KRÓTKOTRWAŁEJ (PAMIĘĆ)
+                            if (!trybKonfiguracji) {
+                                historiaRozmowy.push("Człowiek: " + pytanie);
+                                historiaRozmowy.push("Robot: " + czystyTekst);
+                                if (historiaRozmowy.length > 6) historiaRozmowy.splice(0, 2); // Trzymamy tylko 3 ostatnie wymiany zdań
+                            }
+
                             powiedz(czystyTekst, klasaUsty); 
                             udaloSie = true; break; 
                         }
