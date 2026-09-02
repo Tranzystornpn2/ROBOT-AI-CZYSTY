@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 29.5 (Czysty Agent Zegarowy)</title>
+    <title>Robot AI 29.6 (Czysty Agent Zegarowy)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -66,7 +66,7 @@
 
     <script>
         // ==========================================
-        const SUROWY_KLUCZ = "AQ.Ab8RN6IKATwdcx-ZdUrRKY1OVUNdytqpoWBjpWhpYYVW3XsSzA"; // PAMIĘTAJ! Klucz AIza...
+        const SUROWY_KLUCZ = "AQ.Ab8RN6IKATwdcx-ZdUrRKY1OVUNdytqpoWBjpWhpYYVW3XsSzA"; // PAMIĘTAJ! Podmień na swój klucz
         const GEMINI_KEY = SUROWY_KLUCZ.trim();
         // ==========================================
 
@@ -159,7 +159,7 @@
                 videoElement.srcObject = strumien;
             } catch(e) { }
 
-            if (GEMINI_KEY === "TUTAJ_WKLEJ_SWOJ_KLUCZ" || GEMINI_KEY === "" || GEMINI_KEY.startsWith("AQ")) {
+            if (GEMINI_KEY === "TUTAJ_WKLEJ_SWOJ_KLUCZ_AIza" || GEMINI_KEY === "" || GEMINI_KEY.startsWith("AQ")) {
                 stanSystemuTxt.innerText = "BŁĄD: ZAPOMNIAŁEŚ KLUCZA LUB UŻYTO ZŁEGO FORMATU (AQ)!";
                 stanSystemuTxt.style.color = "#ff3b30";
                 return;
@@ -360,12 +360,10 @@ Po tym tagu przywitaj się ciepło jako nowa postać! Na końcu dodaj tag emocji
             } else {
                 let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Nie masz jeszcze żadnych specjalnych wspomnień zapisanych w bazie.";
                 
-                // MOCNE WSTRZYKNIĘCIE CZASU
                 let dataSystemowa = new Date();
                 let aktualnaGodzinaAI = dataSystemowa.getHours().toString().padStart(2, '0') + ":" + dataSystemowa.getMinutes().toString().padStart(2, '0');
-                let pelnyCzas = dataSystemowa.toLocaleString('pl-PL');
                 
-    PROMPT = `Jesteś robotem. Masz na imię: ${imieRobota}. Twoja rola i kim jesteś dla rozmówcy: ${rolaRobota}. WIDZISZ obraz z kamery. Jesteście w środku rozmowy!
+                PROMPT = `Jesteś robotem. Masz na imię: ${imieRobota}. Twoja rola i kim jesteś dla rozmówcy: ${rolaRobota}. WIDZISZ obraz z kamery. Jesteście w środku rozmowy!
 Oto rzeczy, które zapamiętałeś do tej pory: ${wgranaPamiec}
 
 ZASADY: 
@@ -414,7 +412,7 @@ Pytanie: ${pytanie}`;
                                     stanEmocji = 3; 
                                     powiedz("Tożsamość wykasowana! Cześć, jestem całkiem nowym robotem. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie'); 
                                 }, 800);
-                                return; // Przerywamy dalsze czytanie starych logik
+                                return; 
                             }
 
                             // 1. OBSŁUGA KONFIGURACJI
@@ -427,7 +425,7 @@ Pytanie: ${pytanie}`;
                                 trybKonfiguracji = false;
                             }
 
-                            // 2. PROGRAMOWANIE REGUŁ W TLE (Odporne na nową linię)
+                            // 2. PROGRAMOWANIE REGUŁ W TLE
                             let wykrRegula = odp.match(/\[REGULA:\s*(\{[\s\S]*?\})\s*\]/i);
                             if (wykrRegula) {
                                 try {
@@ -466,7 +464,7 @@ Pytanie: ${pytanie}`;
                                 else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
                             }
                             
-                            // 6. OCZYSZCZENIE TEKSTU Z ZNACZNIKÓW (Bezpieczne czytanie)
+                            // 6. OCZYSZCZENIE TEKSTU Z ZNACZNIKÓW
                             let czystyTekst = odp.replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
                             powiedz(czystyTekst, klasaUsty); 
                             udaloSie = true; break; 
