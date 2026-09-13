@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 32.3 (Pancerny Asystent)</title>
+    <title>Robot AI 32.4 (Odblokowane API)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -42,9 +42,9 @@
     <div id="apiModal">
         <h3 style="margin-top:0; color:#ff3366;">Wymagany Klucz API</h3>
         <p style="font-size: 14px;">Wklej poniżej swój klucz z Google AI Studio</p>
-        <input type="text" id="apiInput" placeholder="AIzaSy..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <input type="text" id="apiInput" placeholder="Klucz API..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         <button onclick="zapiszKluczAPI()" style="padding: 15px; background: #00ffcc; color: black; border: none; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer;">ZAPISZ I URUCHOM</button>
-        <p id="apiError" style="color: #ff3b30; font-size: 13px; display: none; margin-top: 10px;">Błąd! Klucz musi zaczynać się od liter "AIza" lub "AQ".</p>
+        <p id="apiError" style="color: #ff3b30; font-size: 13px; display: none; margin-top: 10px;">Błąd! Wpisany klucz jest za krótki.</p>
     </div>
 
     <button id="ustawieniaBtn" onclick="pokazTrymer()">⚙️</button>
@@ -122,7 +122,7 @@
         const dostepneModele = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
 
         function sprawdzKlucz() {
-            if (!GEMINI_KEY || (!GEMINI_KEY.startsWith("AIza") && !GEMINI_KEY.startsWith("AQ"))) {
+            if (!GEMINI_KEY || GEMINI_KEY.length < 15) {
                 document.getElementById('startBtn').style.display = 'none';
                 document.getElementById('apiModal').style.display = 'block';
             } else { uruchomiOS(); }
@@ -131,11 +131,17 @@
         function zapiszKluczAPI() {
             let surowyKlucz = document.getElementById('apiInput').value;
             let czystyKlucz = surowyKlucz.replace(/[\s\n\r\t\uFEFF\xA0]/g, '').trim();
-            if ((czystyKlucz.startsWith("AIza") || czystyKlucz.startsWith("AQ")) && czystyKlucz.length > 20) {
-                localStorage.setItem('gienekApiKey', czystyKlucz); GEMINI_KEY = czystyKlucz;
-                document.getElementById('apiModal').style.display = 'none'; document.getElementById('apiError').style.display = 'none';
+            
+            if (czystyKlucz.length > 15) {
+                localStorage.setItem('gienekApiKey', czystyKlucz); 
+                GEMINI_KEY = czystyKlucz;
+                document.getElementById('apiModal').style.display = 'none'; 
+                document.getElementById('apiError').style.display = 'none';
                 uruchomiOS(); 
-            } else { document.getElementById('apiError').style.display = 'block'; }
+            } else { 
+                document.getElementById('apiError').innerText = "Błąd! Wpisany klucz jest za krótki.";
+                document.getElementById('apiError').style.display = 'block'; 
+            }
         }
 
         function resetujKluczAPI() {
@@ -484,7 +490,6 @@ Teraz odpowiedz na wypowiedź użytkownika: ${pytanie}`;
                         
                         let czystyTekst = odp.replace(/\[KONFIG:[\s\S]*?\]/ig, '').replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
                         
-                        // Bezpiecznik przed niemym kłapaniem:
                         if(czystyTekst.length < 2) {
                             czystyTekst = trybKonfiguracji ? "Zrozumiałem, konfiguracja została pomyślnie zapisana!" : "Dobrze, szefie.";
                         }
@@ -499,15 +504,13 @@ Teraz odpowiedz na wypowiedź użytkownika: ${pytanie}`;
                         udaloSie = true; break; 
                     } else {
                         ostatniBlad = response.status;
-                        // Jeśli to nie jest błąd serwera (503) ani wyczerpany limit (429), przejdź do następnego modelu
                         continue;
                     }
                 } catch (e) {
-                    ostatniBlad = "Brak neta";
+                    ostatniBlad = "Brak połączenia";
                 }
             }
             
-            // JAWNY ZAPIS BŁĘDU NA EKRANIE, ŻEBYŚMY WIEDZIELI CO GO BOLI!
             if (!udaloSie) {
                 stanSystemuTxt.innerText = "BŁĄD GOOGLE API: " + ostatniBlad + " (Limit lub klucz)";
                 stanSystemuTxt.style.color = "#ff3b30";
@@ -520,7 +523,6 @@ Teraz odpowiedz na wypowiedź użytkownika: ${pytanie}`;
 
         let interwalKlapania;
         function powiedz(tekst, klasaUsty = 'emocja-neutralny') {
-            // Czyszczenie pamięci przeglądarki przed mową, żeby TTS się nie zaciął po czasie!
             window.speechSynthesis.cancel();
             
             aktualnaWypowiedz = new SpeechSynthesisUtterance(tekst);
