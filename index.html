@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 32.4 (Odblokowane API)</title>
+    <title>Robot AI 32.5 (Wsparcie kluczy AQ)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -41,8 +41,8 @@
 
     <div id="apiModal">
         <h3 style="margin-top:0; color:#ff3366;">Wymagany Klucz API</h3>
-        <p style="font-size: 14px;">Wklej poniżej swój klucz z Google AI Studio</p>
-        <input type="text" id="apiInput" placeholder="Klucz API..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <p style="font-size: 14px;">Wklej poniżej swój nowy klucz (AQ...) z Google AI Studio</p>
+        <input type="text" id="apiInput" placeholder="AQ..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         <button onclick="zapiszKluczAPI()" style="padding: 15px; background: #00ffcc; color: black; border: none; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer;">ZAPISZ I URUCHOM</button>
         <p id="apiError" style="color: #ff3b30; font-size: 13px; display: none; margin-top: 10px;">Błąd! Wpisany klucz jest za krótki.</p>
     </div>
@@ -118,10 +118,11 @@
         let czasOstatniejTwarzy = Date.now();
         let poczatekWidzenia = 0; 
 
-        // TYLKO OFICJALNE, DZIAŁAJĄCE MODELE!
-        const dostepneModele = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+        // DODANO NOWE, OFICJALNE MODELE
+        const dostepneModele = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
 
         function sprawdzKlucz() {
+            // Zdjęto wymóg AIza
             if (!GEMINI_KEY || GEMINI_KEY.length < 15) {
                 document.getElementById('startBtn').style.display = 'none';
                 document.getElementById('apiModal').style.display = 'block';
@@ -132,6 +133,7 @@
             let surowyKlucz = document.getElementById('apiInput').value;
             let czystyKlucz = surowyKlucz.replace(/[\s\n\r\t\uFEFF\xA0]/g, '').trim();
             
+            // Zdjęto wymóg AIza
             if (czystyKlucz.length > 15) {
                 localStorage.setItem('gienekApiKey', czystyKlucz); 
                 GEMINI_KEY = czystyKlucz;
@@ -430,9 +432,16 @@ Teraz odpowiedz na wypowiedź użytkownika: ${pytanie}`;
 
             for (let model of dostepneModele) {
                 try {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
+                    // KLUCZOWE: Usunięto parametr ?key= z URL-a
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+                    
                     const response = await fetch(url, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        method: 'POST', 
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            // KLUCZOWE: Klucze AQ przesyłamy teraz bezpiecznie w nagłówku HTTP!
+                            'x-goog-api-key': GEMINI_KEY
+                        },
                         body: JSON.stringify({ contents: [{ parts: czesciWiadomosci }] })
                     });
 
@@ -512,7 +521,7 @@ Teraz odpowiedz na wypowiedź użytkownika: ${pytanie}`;
             }
             
             if (!udaloSie) {
-                stanSystemuTxt.innerText = "BŁĄD GOOGLE API: " + ostatniBlad + " (Limit lub klucz)";
+                stanSystemuTxt.innerText = "BŁĄD GOOGLE API: " + ostatniBlad + " (Błędny lub pusty klucz AQ)";
                 stanSystemuTxt.style.color = "#ff3b30";
                 setTimeout(() => {
                     stanSystemuTxt.style.color = "#ff3366";
