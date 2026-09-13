@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 32.2 (Czysty Asystent)</title>
+    <title>Robot AI 32.3 (Pancerny Asystent)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -11,9 +11,7 @@
 
     <style>
         body { background: #050505; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Comic Sans MS', sans-serif; overflow: hidden; }
-        
         #wygaszacz { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9000; opacity: 0; transition: opacity 2.5s ease-in-out; pointer-events: none; }
-        
         #startBtn { padding: 20px 40px; font-size: 24px; font-weight: bold; background: #ff3b30; color: white; border: none; border-radius: 12px; cursor: pointer; z-index: 100;}
         video { position: absolute; opacity: 0.01; width: 10px; height: 10px; z-index: -100; pointer-events: none; }
         
@@ -84,10 +82,7 @@
     </div>
 
     <script>
-        // ==========================================
         let GEMINI_KEY = localStorage.getItem('gienekApiKey') || "";
-        // ==========================================
-
         const usta = document.getElementById('ustaGienka');
         const stanSystemuTxt = document.getElementById('stanSystemu');
         const mqttStatus = document.getElementById('mqttStatus');
@@ -123,7 +118,8 @@
         let czasOstatniejTwarzy = Date.now();
         let poczatekWidzenia = 0; 
 
-        const dostepneModele = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+        // TYLKO OFICJALNE, DZIAŁAJĄCE MODELE!
+        const dostepneModele = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
 
         function sprawdzKlucz() {
             if (!GEMINI_KEY || (!GEMINI_KEY.startsWith("AIza") && !GEMINI_KEY.startsWith("AQ"))) {
@@ -226,7 +222,7 @@
             setTimeout(uruchomWzrok, 500);
 
             setTimeout(() => {
-                if (!imieRobota) {
+                if (!imieRobota || imieRobota === "null") {
                     trybKonfiguracji = true; trybAktywny = true; wygaszacz.style.opacity = '0'; stanEmocji = 3; 
                     powiedz("Cześć! Jestem nowym robotem z pustą pamięcią. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie');
                 } else { stanSystemuTxt.innerText = `Powiedz '${imieRobota}' by wybudzić.`; }
@@ -386,7 +382,7 @@
             if (trybKonfiguracji) {
                 PROMPT = `Użytkownik włączył cię po raz pierwszy. Powiedział: "${pytanie}". 
 WYMÓG ABSOLUTNY - ODPISZ DOKŁADNIE W TYM FORMACIE: [KONFIG: Imię | Rola]
-Po tym tagu przywitaj się ciepło! Na końcu dodaj tag emocji, np: [RADOSC].`;
+Po tym tagu musisz się z nim przywitać jednym zdaniem! Na końcu dodaj tag emocji, np: [RADOSC].`;
             } else {
                 let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Brak ważnych wspomnień.";
                 let dataSystemowa = new Date();
@@ -424,6 +420,7 @@ Teraz odpowiedz na wypowiedź użytkownika: ${pytanie}`;
             if (zdjecieB64) czesciWiadomosci.push({ inlineData: { mimeType: "image/jpeg", data: zdjecieB64 } });
 
             let udaloSie = false;
+            let ostatniBlad = "";
 
             for (let model of dostepneModele) {
                 try {
@@ -436,75 +433,96 @@ Teraz odpowiedz na wypowiedź użytkownika: ${pytanie}`;
                     if (response.ok) {
                         const data = await response.json();
                         let odp = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (odp) { 
-                            if (odp.includes('[FABRYKA]')) {
-                                localStorage.removeItem('robotImie'); localStorage.removeItem('robotRola');
-                                localStorage.removeItem('gienekPamiec'); localStorage.removeItem('gienekReguly');
-                                imieRobota = null; rolaRobota = null; trybKonfiguracji = true; historiaRozmowy = [];
-                                setTimeout(() => { stanEmocji = 3; powiedz("Tożsamość wykasowana! Cześć, jestem całkiem nowym robotem. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie'); }, 800);
-                                return; 
-                            }
+                        
+                        if (!odp) odp = "Wybacz, zgubiłem watek. Możesz powtórzyć? [ZASKOCZENIE]";
 
-                            let wykrKonfig = odp.match(/\[KONFIG:\s*(.*?)\s*\|\s*(.*?)\]/i);
-                            if (wykrKonfig) {
-                                imieRobota = wykrKonfig[1].trim(); rolaRobota = wykrKonfig[2].trim();
-                                localStorage.setItem('robotImie', imieRobota); localStorage.setItem('robotRola', rolaRobota); trybKonfiguracji = false;
-                            }
-
-                            let wykrRegula = odp.match(/\[REGULA:\s*(\{[\s\S]*?\})\s*\]/i);
-                            if (wykrRegula) {
-                                try {
-                                    let nowaRegula = JSON.parse(wykrRegula[1]);
-                                    let zapisaneReguly = JSON.parse(localStorage.getItem('gienekReguly') || "[]");
-                                    zapisaneReguly.push(nowaRegula); localStorage.setItem('gienekReguly', JSON.stringify(zapisaneReguly));
-                                    setTimeout(() => { stanSystemuTxt.innerText = "Zaprogramowano zadanie w tle!"; }, 500);
-                                } catch(e) {}
-                            }
-
-                            let wykrPamiec = odp.match(/\[ZAPAMIETAJ:\s*(.*?)\]/i);
-                            if (wykrPamiec) {
-                                let noweWspomnienie = wykrPamiec[1].trim();
-                                let obecnaPamiec = localStorage.getItem('gienekPamiec') || "";
-                                localStorage.setItem('gienekPamiec', obecnaPamiec + " " + noweWspomnienie + ".");
-                                setTimeout(() => { stanSystemuTxt.innerText = "Trwale zapisałem to w pamięci!"; }, 500);
-                            }
-                            
-                            if (odp.includes('[ZAPOMNIJ]')) {
-                                localStorage.removeItem('gienekPamiec'); localStorage.removeItem('gienekReguly'); historiaRozmowy = [];
-                                setTimeout(() => { stanSystemuTxt.innerText = "Sformatowałem wspomnienia!"; }, 500);
-                            }
-
-                            let wykrEmocja = odp.match(/\[(RADOSC|ZASKOCZENIE|SMUTEK|NEUTRALNY)\]/i);
-                            let klasaUsty = 'emocja-neutralny'; stanEmocji = 1;
-                            if (wykrEmocja) {
-                                let em = wykrEmocja[1].toUpperCase();
-                                if (em === 'RADOSC') { klasaUsty = 'emocja-radosc'; stanEmocji = 2; }
-                                else if (em === 'ZASKOCZENIE') { klasaUsty = 'emocja-zaskoczenie'; stanEmocji = 3; }
-                                else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
-                            }
-                            
-                            let czystyTekst = odp.replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
-                            
-                            if (!trybKonfiguracji) {
-                                historiaRozmowy.push("Człowiek: " + pytanie);
-                                historiaRozmowy.push("Robot: " + czystyTekst);
-                                if (historiaRozmowy.length > 6) historiaRozmowy.splice(0, 2); 
-                            }
-
-                            powiedz(czystyTekst, klasaUsty); 
-                            udaloSie = true; break; 
+                        if (odp.includes('[FABRYKA]')) {
+                            localStorage.removeItem('robotImie'); localStorage.removeItem('robotRola');
+                            localStorage.removeItem('gienekPamiec'); localStorage.removeItem('gienekReguly');
+                            imieRobota = null; rolaRobota = null; trybKonfiguracji = true; historiaRozmowy = [];
+                            setTimeout(() => { stanEmocji = 3; powiedz("Tożsamość wykasowana! Cześć, jestem całkiem nowym robotem. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie'); }, 800);
+                            return; 
                         }
+
+                        let wykrKonfig = odp.match(/\[KONFIG:\s*(.*?)\s*\|\s*(.*?)\]/i);
+                        if (wykrKonfig) {
+                            imieRobota = wykrKonfig[1].trim(); rolaRobota = wykrKonfig[2].trim();
+                            localStorage.setItem('robotImie', imieRobota); localStorage.setItem('robotRola', rolaRobota); trybKonfiguracji = false;
+                        }
+
+                        let wykrRegula = odp.match(/\[REGULA:\s*(\{[\s\S]*?\})\s*\]/i);
+                        if (wykrRegula) {
+                            try {
+                                let nowaRegula = JSON.parse(wykrRegula[1]);
+                                let zapisaneReguly = JSON.parse(localStorage.getItem('gienekReguly') || "[]");
+                                zapisaneReguly.push(nowaRegula); localStorage.setItem('gienekReguly', JSON.stringify(zapisaneReguly));
+                                setTimeout(() => { stanSystemuTxt.innerText = "Zaprogramowano zadanie w tle!"; }, 500);
+                            } catch(e) {}
+                        }
+
+                        let wykrPamiec = odp.match(/\[ZAPAMIETAJ:\s*(.*?)\]/i);
+                        if (wykrPamiec) {
+                            let noweWspomnienie = wykrPamiec[1].trim();
+                            let obecnaPamiec = localStorage.getItem('gienekPamiec') || "";
+                            localStorage.setItem('gienekPamiec', obecnaPamiec + " " + noweWspomnienie + ".");
+                            setTimeout(() => { stanSystemuTxt.innerText = "Trwale zapisałem to w pamięci!"; }, 500);
+                        }
+                        
+                        if (odp.includes('[ZAPOMNIJ]')) {
+                            localStorage.removeItem('gienekPamiec'); localStorage.removeItem('gienekReguly'); historiaRozmowy = [];
+                            setTimeout(() => { stanSystemuTxt.innerText = "Sformatowałem wspomnienia!"; }, 500);
+                        }
+
+                        let wykrEmocja = odp.match(/\[(RADOSC|ZASKOCZENIE|SMUTEK|NEUTRALNY)\]/i);
+                        let klasaUsty = 'emocja-neutralny'; stanEmocji = 1;
+                        if (wykrEmocja) {
+                            let em = wykrEmocja[1].toUpperCase();
+                            if (em === 'RADOSC') { klasaUsty = 'emocja-radosc'; stanEmocji = 2; }
+                            else if (em === 'ZASKOCZENIE') { klasaUsty = 'emocja-zaskoczenie'; stanEmocji = 3; }
+                            else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
+                        }
+                        
+                        let czystyTekst = odp.replace(/\[KONFIG:[\s\S]*?\]/ig, '').replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
+                        
+                        // Bezpiecznik przed niemym kłapaniem:
+                        if(czystyTekst.length < 2) {
+                            czystyTekst = trybKonfiguracji ? "Zrozumiałem, konfiguracja została pomyślnie zapisana!" : "Dobrze, szefie.";
+                        }
+
+                        if (!trybKonfiguracji) {
+                            historiaRozmowy.push("Człowiek: " + pytanie);
+                            historiaRozmowy.push("Robot: " + czystyTekst);
+                            if (historiaRozmowy.length > 6) historiaRozmowy.splice(0, 2); 
+                        }
+
+                        powiedz(czystyTekst, klasaUsty); 
+                        udaloSie = true; break; 
                     } else {
-                        if (response.status === 503 || response.status === 429 || response.status === 404) continue; 
-                        else { wznowNasluch(); return; }
+                        ostatniBlad = response.status;
+                        // Jeśli to nie jest błąd serwera (503) ani wyczerpany limit (429), przejdź do następnego modelu
+                        continue;
                     }
-                } catch (e) { }
+                } catch (e) {
+                    ostatniBlad = "Brak neta";
+                }
             }
-            if (!udaloSie) wznowNasluch();
+            
+            // JAWNY ZAPIS BŁĘDU NA EKRANIE, ŻEBYŚMY WIEDZIELI CO GO BOLI!
+            if (!udaloSie) {
+                stanSystemuTxt.innerText = "BŁĄD GOOGLE API: " + ostatniBlad + " (Limit lub klucz)";
+                stanSystemuTxt.style.color = "#ff3b30";
+                setTimeout(() => {
+                    stanSystemuTxt.style.color = "#ff3366";
+                    wznowNasluch();
+                }, 4000);
+            }
         }
 
         let interwalKlapania;
         function powiedz(tekst, klasaUsty = 'emocja-neutralny') {
+            // Czyszczenie pamięci przeglądarki przed mową, żeby TTS się nie zaciął po czasie!
+            window.speechSynthesis.cancel();
+            
             aktualnaWypowiedz = new SpeechSynthesisUtterance(tekst);
             aktualnaWypowiedz.lang = 'pl-PL'; 
             
