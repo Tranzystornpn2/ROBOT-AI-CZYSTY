@@ -3,16 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Robot AI 32.5 (Wsparcie kluczy AQ)</title>
-
+    <title>Gienek OS 34.1 (Cloud Hybryda)</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
     <style>
         body { background: #050505; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Comic Sans MS', sans-serif; overflow: hidden; }
+        
+        #ekranWyboru { position: fixed; top:0; left:0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .btnWybor { width: 85%; max-width: 350px; padding: 25px; margin: 15px; border-radius: 15px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-ai { background: #ff3366; color: white; box-shadow: 0 0 20px rgba(255,51,102,0.4); }
+        .btn-zabawka { background: #00ffcc; color: black; box-shadow: 0 0 20px rgba(0,255,204,0.4); }
+
         #wygaszacz { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9000; opacity: 0; transition: opacity 2.5s ease-in-out; pointer-events: none; }
-        #startBtn { padding: 20px 40px; font-size: 24px; font-weight: bold; background: #ff3b30; color: white; border: none; border-radius: 12px; cursor: pointer; z-index: 100;}
         video { position: absolute; opacity: 0.01; width: 10px; height: 10px; z-index: -100; pointer-events: none; }
         
         .usta { background-color: #ff3366; margin-bottom: 40px; transition: border-radius 0.4s ease-out, width 0.4s ease-out, height 0.4s ease-out, background-color 0.4s, transform 0.15s ease-in-out; }
@@ -25,196 +30,122 @@
         #debug { font-size: 15px; color: #888; text-align: center; position: absolute; bottom: 25px; width: 90%; word-break: break-word; }
         .mqtt-status { font-weight: bold; color: #555; display: block; margin-top: 5px; font-size: 12px;}
         
-        #ustawieniaBtn { position: absolute; top: 20px; right: 20px; font-size: 35px; background: none; border: none; cursor: pointer; display: none; z-index: 50; }
-        #panelTrymera { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20,20,20,0.98); padding: 20px; border-radius: 15px; text-align: center; border: 2px solid #00ffcc; z-index: 200; width: 90%; max-width: 380px; box-shadow: 0 0 30px #000;}
-        .strzalki { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 15px 0; justify-content: center; }
-        .btnKierunek { padding: 12px; font-size: 20px; background: #333; color: white; border: none; border-radius: 8px; cursor: pointer;}
-        #zapiszBtn { padding: 12px; font-size: 15px; background: #00ffcc; color: black; border: none; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer;}
-
-        #apiModal { display: none; position: fixed; z-index: 9999; background: rgba(20,20,20,0.98); border: 2px solid #ff3366; padding: 25px; border-radius: 15px; text-align: center; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-width: 350px; }
+        #apiModal { display: none; position: fixed; z-index: 10000; background: #111; border: 2px solid #ff3366; padding: 25px; border-radius: 15px; text-align: center; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-width: 350px; }
         #apiInput { width: 90%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: none; text-align: center; font-size: 16px; background: #222; color: #fff; }
+        
+        #resetKluczaBtn { position: absolute; top: 20px; right: 20px; background: #ff3b30; color: white; padding: 10px; border: none; border-radius: 8px; font-size: 12px; cursor: pointer; z-index: 8000; display: none; }
     </style>
 </head>
 <body>
 
-    <div id="wygaszacz"></div>
-
-    <div id="apiModal">
-        <h3 style="margin-top:0; color:#ff3366;">Wymagany Klucz API</h3>
-        <p style="font-size: 14px;">Wklej poniżej swój nowy klucz (AQ...) z Google AI Studio</p>
-        <input type="text" id="apiInput" placeholder="AQ..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-        <button onclick="zapiszKluczAPI()" style="padding: 15px; background: #00ffcc; color: black; border: none; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer;">ZAPISZ I URUCHOM</button>
-        <p id="apiError" style="color: #ff3b30; font-size: 13px; display: none; margin-top: 10px;">Błąd! Wpisany klucz jest za krótki.</p>
+    <div id="ekranWyboru">
+        <h2 style="color:white; margin-bottom:5px;">WYBIERZ TRYB PRACY</h2>
+        <p style="font-size:12px; color:#888; margin-bottom:30px; text-align:center;">Wymaga dostępu do internetu</p>
+        
+        <button class="btnWybor btn-ai" onclick="wybranoTryb('AI')">
+            🔴 ZAAWANSOWANE AI<br>
+            <span style="font-size:12px; font-weight:normal;">(Wymaga klucza Gemini)</span>
+        </button>
+        
+        <button class="btnWybor btn-zabawka" onclick="wybranoTryb('OFFLINE')">
+            🧸 ZABAWKA (Dla Dzieci)<br>
+            <span style="font-size:12px; font-weight:normal;">(Lokalny słownik)</span>
+        </button>
     </div>
 
-    <button id="ustawieniaBtn" onclick="pokazTrymer()">⚙️</button>
-    <button id="startBtn" onclick="sprawdzKlucz()">OBUDŹ ROBOTA</button>
+    <div id="wygaszacz"></div>
+    
+    <button id="resetKluczaBtn" onclick="resetujKlucz()">ZMIEŃ KLUCZ</button>
+
+    <div id="apiModal">
+        <h3 style="margin-top:0; color:#ff3366;">Klucz API Gemini</h3>
+        <p style="font-size: 14px;">Wklej klucz (AQ...) z Google AI Studio</p>
+        <input type="text" id="apiInput" placeholder="AQ..." autocomplete="off">
+        <button onclick="zapiszKluczAPI()" style="padding: 15px; background: #ff3366; color: white; border: none; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer;">ZAPISZ I URUCHOM</button>
+        <p id="apiError" style="color: #ff3b30; font-size: 13px; display: none; margin-top: 10px;">Błąd! Za krótki klucz.</p>
+    </div>
     
     <div class="usta spi" id="ustaGienka"></div>
     <video id="webcam" autoplay playsinline muted></video>
     
     <div id="debug">
-        <span id="stanSystemu" style="color: #ff3366;">System uśpiony...</span>
-        <span id="mqttStatus" class="mqtt-status">Sieć Neuralna: OFF</span>
-    </div>
-
-    <div id="panelTrymera">
-        <h3 style="margin-top:0; color:#00ffcc;">Ustawienia Systemu</h3>
-        
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="strzalki" style="flex:1;">
-                <div></div><button class="btnKierunek" onclick="trymuj(0, 5)">⬆️</button><div></div>
-                <button class="btnKierunek" onclick="trymuj(-5, 0)">⬅️</button>
-                <button class="btnKierunek" onclick="trymuj(0, 0)">🔄</button>
-                <button class="btnKierunek" onclick="trymuj(5, 0)">➡️</button>
-                <div></div><button class="btnKierunek" onclick="trymuj(0, -5)">⬇️</button><div></div>
-            </div>
-            <div style="flex:1; text-align:right;">
-                <p style="margin:0; font-size:11px;">X: <span id="txtOffX" style="color:white; font-weight:bold;">0</span></p>
-                <p style="margin:0; font-size:11px;">Y: <span id="txtOffY" style="color:white; font-weight:bold;">0</span></p>
-                <p style="margin-top:10px; font-size:11px; color:#00ffcc;">Czułość: <span id="wartoscMnoznika" style="color:white; font-weight:bold;">170</span></p>
-                <input type="range" id="mnoznikSlider" min="50" max="350" value="170" oninput="zmienMnoznik(this.value)" style="width: 100%;">
-            </div>
-        </div>
-        
-        <button id="zapiszBtn" onclick="zapiszTrymer()" style="margin-top: 15px;">ZAPISZ USTAWIENIA</button>
-        <button onclick="resetujKluczAPI()" style="margin-top: 10px; padding: 8px; background: #ff3b30; color: white; border: none; border-radius: 8px; width: 100%; cursor: pointer; font-size:11px;">⚠️ ZMIEŃ KLUCZ API GEMINI</button>
+        <span id="stanSystemu" style="color: #ff3366;">System czeka na wybór trybu...</span>
+        <span id="mqttStatus" class="mqtt-status">Sieć MQTT: OFF</span>
     </div>
 
     <script>
+        let TRYB_PRACY = null; 
         let GEMINI_KEY = localStorage.getItem('gienekApiKey') || "";
+        let slownikDzieci = {};
+
         const usta = document.getElementById('ustaGienka');
         const stanSystemuTxt = document.getElementById('stanSystemu');
         const mqttStatus = document.getElementById('mqttStatus');
         const videoElement = document.getElementById('webcam');
         const wygaszacz = document.getElementById('wygaszacz');
+        const resetBtn = document.getElementById('resetKluczaBtn');
 
-        let mostRadiowy = null; let gotowyDoWysylania = false; let ostWysylka = 0;
+        let mostRadiowy = null; let gotowyDoWysylania = false; let ostWysylkaRuchu = 0;
         let rozpoznawanieMowy = null; let trybAktywny = false; let czyMowi = false;
-        let aktualnaWypowiedz = null; 
-        let przetwarzanieWToku = false; 
-        let bezpiecznikTTS = null; 
-        let czasOstatniejAktywnosci = Date.now(); 
-        let stanEmocji = 0; 
+        let przetwarzanieWToku = false; let bezpiecznikTTS = null; 
+        let czasOstatniejAktywnosci = Date.now(); let stanEmocji = 0; 
         
         let imieRobota = localStorage.getItem('robotImie') || null;
-        let rolaRobota = localStorage.getItem('robotRola') || null;
         let trybKonfiguracji = false;
-        let historiaRozmowy = []; 
         
-        let offsetX = parseInt(localStorage.getItem('gienekOffsetX')) || 0;
-        let offsetY = parseInt(localStorage.getItem('gienekOffsetY')) || 0;
-        let mnoznikRuchu = parseInt(localStorage.getItem('gienekMnoznik')) || 170;
-
         let glatkiX = 90; let glatkiY = 90;
         let ostatniX = 90; let ostatniY = 90;
         let celBladzeniaX = 90; let celBladzeniaY = 90;
-        let czasZmianyBladzenia = 0;
-        let mruga = false;
-        let czasOstatniejKlatki = 0; 
-
-        let poprzednioWidzialKogos = false;
-        let czasOstatniejReakcjiWzrokowej = 0;
-        let czasOstatniejTwarzy = Date.now();
+        let czasZmianyBladzenia = 0; let mruga = false; let czasOstatniejKlatki = 0; 
         let poczatekWidzenia = 0; 
 
-        // DODANO NOWE, OFICJALNE MODELE
-        const dostepneModele = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+        function wybranoTryb(tryb) {
+            TRYB_PRACY = tryb;
+            document.getElementById('ekranWyboru').style.display = 'none';
+            if (tryb === 'AI') {
+                if (!GEMINI_KEY || GEMINI_KEY.length < 15) {
+                    document.getElementById('apiModal').style.display = 'block';
+                } else {
+                    uruchomiOS();
+                }
+                resetBtn.style.display = 'block';
+            } else {
+                pobierzSlownik(); uruchomiOS();
+            }
+        }
 
-        function sprawdzKlucz() {
-            // Zdjęto wymóg AIza
-            if (!GEMINI_KEY || GEMINI_KEY.length < 15) {
-                document.getElementById('startBtn').style.display = 'none';
-                document.getElementById('apiModal').style.display = 'block';
-            } else { uruchomiOS(); }
+        function pobierzSlownik() {
+            let zapis = localStorage.getItem('gienekSlownik');
+            if(zapis) slownikDzieci = JSON.parse(zapis);
+            else slownikDzieci = {"cześć": "Witajcie!", "co robisz": "Pilnuję warsztatu"};
+        }
+
+        function zapiszSlownik() {
+            localStorage.setItem('gienekSlownik', JSON.stringify(slownikDzieci));
+        }
+
+        function resetujKlucz() {
+            if(confirm("Czy na pewno chcesz usunąć klucz API?")) {
+                localStorage.removeItem('gienekApiKey');
+                location.reload();
+            }
         }
 
         function zapiszKluczAPI() {
-            let surowyKlucz = document.getElementById('apiInput').value;
-            let czystyKlucz = surowyKlucz.replace(/[\s\n\r\t\uFEFF\xA0]/g, '').trim();
-            
-            // Zdjęto wymóg AIza
-            if (czystyKlucz.length > 15) {
-                localStorage.setItem('gienekApiKey', czystyKlucz); 
-                GEMINI_KEY = czystyKlucz;
-                document.getElementById('apiModal').style.display = 'none'; 
-                document.getElementById('apiError').style.display = 'none';
-                uruchomiOS(); 
-            } else { 
-                document.getElementById('apiError').innerText = "Błąd! Wpisany klucz jest za krótki.";
+            // Agresywne usuwanie niewidocznych spacji i enterów dodawanych przez klawiatury mobilne
+            let k = document.getElementById('apiInput').value.replace(/[\s\n\r\t\uFEFF\xA0]/g, '').trim();
+            if (k.length > 15) {
+                localStorage.setItem('gienekApiKey', k); GEMINI_KEY = k;
+                document.getElementById('apiModal').style.display = 'none'; uruchomiOS(); 
+            } else {
                 document.getElementById('apiError').style.display = 'block'; 
             }
         }
 
-        function resetujKluczAPI() {
-            if(confirm("Czy na pewno chcesz usunąć klucz API i wpisać nowy?")) { localStorage.removeItem('gienekApiKey'); location.reload(); }
-        }
-
-        function pokazTrymer() { 
-            document.getElementById('panelTrymera').style.display = 'block'; 
-            document.getElementById('txtOffX').innerText = offsetX; document.getElementById('txtOffY').innerText = offsetY; 
-            document.getElementById('mnoznikSlider').value = mnoznikRuchu; document.getElementById('wartoscMnoznika').innerText = mnoznikRuchu;
-        }
-
-        function trymuj(dx, dy) { 
-            if(dx === 0 && dy === 0) { 
-                offsetX = 0; offsetY = 0; mnoznikRuchu = 170; 
-                document.getElementById('mnoznikSlider').value = 170; document.getElementById('wartoscMnoznika').innerText = 170;
-            } else { offsetX += dx; offsetY += dy; } 
-            document.getElementById('txtOffX').innerText = offsetX; document.getElementById('txtOffY').innerText = offsetY; 
-        }
-
-        function zmienMnoznik(val) { mnoznikRuchu = parseInt(val); document.getElementById('wartoscMnoznika').innerText = mnoznikRuchu; }
-
-        function zapiszTrymer() { 
-            localStorage.setItem('gienekOffsetX', offsetX); 
-            localStorage.setItem('gienekOffsetY', offsetY); 
-            localStorage.setItem('gienekMnoznik', mnoznikRuchu);
-            document.getElementById('panelTrymera').style.display = 'none'; 
-        }
-
-        function cyklMrugania() {
-            if (trybAktywny && !czyMowi) { mruga = true; setTimeout(() => { mruga = false; }, 150); }
-            setTimeout(cyklMrugania, Math.random() * 3000 + 1500); 
-        }
-        setTimeout(cyklMrugania, 2000);
-
-        setInterval(() => {
-            if (czyMowi) return; 
-            let teraz = new Date();
-            let aktualnaGodzina = teraz.getHours().toString().padStart(2, '0') + ":" + teraz.getMinutes().toString().padStart(2, '0');
-            let pelnaMinuta = teraz.getMinutes() === 0; 
-            
-            let zapisaneReguly = JSON.parse(localStorage.getItem('gienekReguly') || "[]");
-            let pozostaleReguly = [];
-            let wymusZapis = false;
-
-            for (let r of zapisaneReguly) {
-                if (r.warunek === "CZAS" && r.wartosc === aktualnaGodzina) {
-                    if (!trybAktywny) { trybAktywny = true; wygaszacz.style.opacity = '0'; stanEmocji = 2; }
-                    powiedz(r.akcja, 'emocja-radosc'); 
-                    wymusZapis = true; 
-                } 
-                else if (r.warunek === "CYKL" && r.wartosc === "CO_GODZINE" && pelnaMinuta) {
-                    if(localStorage.getItem('ostatniaGodzinaBicia') != teraz.getHours().toString()) {
-                        if (!trybAktywny) { trybAktywny = true; wygaszacz.style.opacity = '0'; stanEmocji = 2; }
-                        powiedz(r.akcja, 'emocja-radosc'); 
-                        localStorage.setItem('ostatniaGodzinaBicia', teraz.getHours().toString());
-                    }
-                    pozostaleReguly.push(r); 
-                } 
-                else { 
-                    pozostaleReguly.push(r); 
-                }
-            }
-            if (wymusZapis) { localStorage.setItem('gienekReguly', JSON.stringify(pozostaleReguly)); }
-        }, 30000);
-
         function uruchomiOS() {
             window.speechSynthesis.speak(new SpeechSynthesisUtterance("")); 
-            document.getElementById('startBtn').style.display = 'none'; document.getElementById('ustawieniaBtn').style.display = 'block';
-            stanSystemuTxt.innerText = "Start systemów...";
-            uruchomSluch(); setTimeout(uruchomReszte, 100);
+            stanSystemuTxt.innerText = "Start kamer i mikrofonu...";
+            uruchomSluch(); setTimeout(uruchomReszte, 200);
         }
 
         async function uruchomReszte() {
@@ -225,16 +156,21 @@
 
             const unikalnyID = 'gienek_ios_' + Math.random().toString(16).substring(2, 10);
             mostRadiowy = mqtt.connect('wss://broker.emqx.io:8084/mqtt', { clientId: unikalnyID, keepalive: 60, clean: true });
-            mostRadiowy.on('connect', () => { gotowyDoWysylania = true; mqttStatus.innerText = "Sieć Neuralna: ONLINE"; mqttStatus.style.color = "#ff3366"; });
-            
+            mostRadiowy.on('connect', () => { gotowyDoWysylania = true; mqttStatus.innerText = "Sieć MQTT: ONLINE"; mqttStatus.style.color = "#00ffcc"; });
+
             setTimeout(uruchomWzrok, 500);
 
             setTimeout(() => {
-                if (!imieRobota || imieRobota === "null") {
-                    trybKonfiguracji = true; trybAktywny = true; wygaszacz.style.opacity = '0'; stanEmocji = 3; 
-                    powiedz("Cześć! Jestem nowym robotem z pustą pamięcią. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie');
-                } else { stanSystemuTxt.innerText = `Powiedz '${imieRobota}' by wybudzić.`; }
-            }, 1500);
+                if (TRYB_PRACY === 'OFFLINE') {
+                    imieRobota = "Robot"; trybAktywny = true; wygaszacz.style.opacity = '0'; stanEmocji = 2;
+                    powiedz("Tryb zabawki aktywowany! Znam już " + Object.keys(slownikDzieci).length + " słów.", "emocja-radosc");
+                } else {
+                    if (!imieRobota || imieRobota === "null") {
+                        trybKonfiguracji = true; trybAktywny = true; wygaszacz.style.opacity = '0'; stanEmocji = 3; 
+                        powiedz("Cześć! Jestem nowym robotem. Jak mam się nazywać?", 'emocja-zaskoczenie');
+                    } else { stanSystemuTxt.innerText = `Powiedz '${imieRobota}' by wybudzić.`; }
+                }
+            }, 2000);
         }
 
         function uruchomWzrok() {
@@ -243,50 +179,34 @@
 
             faceDetection.onResults((results) => {
                 let teraz = Date.now();
-                let docelowyX = 90 + offsetX;
-                let docelowyY = 90 + offsetY;
-                let widziKogos = false;
+                let docelowyX = 90; let docelowyY = 90; let widziKogos = false;
 
                 if (results.detections && results.detections.length > 0) {
                     try {
-                        widziKogos = true; czasOstatniejTwarzy = teraz;
+                        widziKogos = true;
                         const box = results.detections[0].boundingBox; 
                         let cx = (box.xCenter !== undefined) ? box.xCenter : ((box.xMin || box.xmin || 0) + (box.width / 2));
                         let cy = (box.yCenter !== undefined) ? box.yCenter : ((box.yMin || box.ymin || 0) + (box.height / 2));
                         
-                        docelowyX = Math.max(0, Math.min(180, Math.round(175 - (cx * mnoznikRuchu)) + offsetX));
-                        docelowyY = Math.max(0, Math.min(180, Math.round(175 - (cy * mnoznikRuchu)) + offsetY));
+                        docelowyX = Math.max(0, Math.min(180, Math.round(175 - (cx * 170))));
+                        docelowyY = Math.max(0, Math.min(180, Math.round(175 - (cy * 170))));
                         ostatniX = docelowyX; ostatniY = docelowyY; czasOstatniejAktywnosci = teraz; 
 
                         if (poczatekWidzenia === 0) poczatekWidzenia = teraz;
-                        if (!trybAktywny && (teraz - poczatekWidzenia >= 3000)) {
+                        if (!trybAktywny && (teraz - poczatekWidzenia >= 2000)) {
                             trybAktywny = true; wygaszacz.style.opacity = '0'; stanEmocji = 1;
-                            stanSystemuTxt.innerText = "Wybudzam (Zauważono człowieka)...";
-                        }
-
-                        if (trybAktywny && !poprzednioWidzialKogos && (teraz - czasOstatniejReakcjiWzrokowej > 60000)) { 
-                            let zapisaneReguly = JSON.parse(localStorage.getItem('gienekReguly') || "[]");
-                            for (let r of zapisaneReguly) {
-                                if (r.warunek === "WZROK") {
-                                    setTimeout(() => { if(!czyMowi) { stanEmocji = 3; powiedz(r.akcja, 'emocja-zaskoczenie'); } }, 1000);
-                                    czasOstatniejReakcjiWzrokowej = teraz; break;
-                                }
-                            }
+                            stanSystemuTxt.innerText = "Wybudzam...";
+                            if(TRYB_PRACY === 'OFFLINE' && !czyMowi) powiedz("Hej, widzę cię!", "emocja-radosc");
                         }
                     } catch(e) {}
                 }
 
-                poprzednioWidzialKogos = widziKogos;
-
-                if (!widziKogos) {
-                    if (teraz - czasOstatniejTwarzy < 2000) { docelowyX = ostatniX; docelowyY = ostatniY; } 
-                    if (teraz - czasOstatniejTwarzy > 500) { poczatekWidzenia = 0; }
-                }
+                if (!widziKogos) poczatekWidzenia = 0;
 
                 if (czyMowi) {
                     if (teraz - czasZmianyBladzenia > (Math.random() * 800 + 700)) {
-                        celBladzeniaX = (widziKogos ? ostatniX : (90 + offsetX)) + (Math.random() * 40 - 20);
-                        celBladzeniaY = (widziKogos ? ostatniY : (90 + offsetY)) + (Math.random() * 30 - 15);
+                        celBladzeniaX = (widziKogos ? ostatniX : 90) + (Math.random() * 40 - 20);
+                        celBladzeniaY = (widziKogos ? ostatniY : 90) + (Math.random() * 30 - 15);
                         czasZmianyBladzenia = teraz;
                     }
                     docelowyX = celBladzeniaX; docelowyY = celBladzeniaY;
@@ -295,34 +215,27 @@
                 if (trybAktywny && !czyMowi && !przetwarzanieWToku) {
                     if (teraz - czasOstatniejAktywnosci > 35000) { 
                         trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi';
-                        stanSystemuTxt.innerText = "Brak aktywności. Idę spać...";
+                        stanSystemuTxt.innerText = "Brak aktywności. Sen...";
                         wygaszacz.style.opacity = '1'; poczatekWidzenia = 0;
                     }
                 }
 
-                glatkiX = glatkiX + (docelowyX - glatkiX) * 0.25;
-                glatkiY = glatkiY + (docelowyY - glatkiY) * 0.25;
-
+                glatkiX = glatkiX + (docelowyX - glatkiX) * 0.25; glatkiY = glatkiY + (docelowyY - glatkiY) * 0.25;
                 let w = 1; if (!trybAktywny) { w = 0; stanEmocji = 0; } else if (mruga) { w = 0; } 
-                wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), w, stanEmocji);
+                
+                if (gotowyDoWysylania && (Date.now() - ostWysylkaRuchu > 50)) {
+                    mostRadiowy.publish("warsztat_gienek_12345/oczy", `${Math.round(glatkiX)},${Math.round(glatkiY)},${w},${stanEmocji}`);
+                    ostWysylkaRuchu = Date.now();
+                }
             });
 
             const camera = new Camera(videoElement, {
                 onFrame: async () => { 
                     let teraz = Date.now();
-                    if (teraz - czasOstatniejKlatki > 150) {
-                        czasOstatniejKlatki = teraz;
-                        try { await faceDetection.send({image: videoElement}); } catch(e) {}
-                    }
+                    if (teraz - czasOstatniejKlatki > 100) { czasOstatniejKlatki = teraz; try { await faceDetection.send({image: videoElement}); } catch(e) {} }
                 }, width: 320, height: 240
             });
             camera.start();
-        }
-
-        function wyslijDoESP(x, y, widzi, emocja) {
-            if (!gotowyDoWysylania || Date.now() - ostWysylka < 50) return; 
-            ostWysylka = Date.now();
-            mostRadiowy.publish("warsztat_gienek_12345/oczy", `${x},${y},${widzi},${emocja}`);
         }
 
         function zrobZdjecieDlaAI() {
@@ -333,9 +246,15 @@
             } catch(e) { return null; }
         }
 
+        function cyklMrugania() {
+            if (trybAktywny && !czyMowi) { mruga = true; setTimeout(() => { mruga = false; }, 150); }
+            setTimeout(cyklMrugania, Math.random() * 3000 + 1500); 
+        }
+        setTimeout(cyklMrugania, 2000);
+
         function uruchomSluch() {
             window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!window.SpeechRecognition) { stanSystemuTxt.innerText = "Brak obsługi mowy w przeglądarce."; return; }
+            if (!window.SpeechRecognition) { stanSystemuTxt.innerText = "Brak obsługi mowy."; return; }
 
             rozpoznawanieMowy = new SpeechRecognition();
             rozpoznawanieMowy.lang = 'pl-PL'; rozpoznawanieMowy.continuous = true; rozpoznawanieMowy.interimResults = false;
@@ -345,251 +264,123 @@
                 czasOstatniejAktywnosci = Date.now(); 
                 if (przetwarzanieWToku || czyMowi) return; 
 
-                if (trybKonfiguracji) {
-                    if (tekst.length < 3) return; 
-                    przetwarzanieWToku = true;
-                    try { rozpoznawanieMowy.stop(); } catch(e){} 
-                    await zapytajGemini(tekst); return;
-                }
-
                 if (!trybAktywny) {
-                    let bazoweImie = imieRobota ? imieRobota.toLowerCase().substring(0, 4) : "gien";
-                    if (tekst.includes(bazoweImie) || tekst.includes("pobudka") || tekst.includes("obudź")) {
+                    if (tekst.includes("robot") || tekst.includes("gienek") || tekst.includes("pobudka")) {
                         trybAktywny = true; stanEmocji = 1; usta.className = 'usta emocja-neutralny'; 
-                        wygaszacz.style.opacity = '0'; powiedz("Hej! Słucham was uważnie!");
+                        wygaszacz.style.opacity = '0'; powiedz("Słucham cię!");
                     }
-                } else {
-                    if (tekst.includes("idź spać") || tekst.includes("wyłącz się") || tekst.includes("dobranoc")) {
-                        trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi'; 
-                        wygaszacz.style.opacity = '1'; wyslijDoESP(90, 90, 0, 0); poczatekWidzenia = 0;
-                        powiedz("Dobranoc, idę odpocząć!"); return;
-                    }
-
-                    if (tekst.length < 3) return; 
-                    przetwarzanieWToku = true;
-                    try { rozpoznawanieMowy.stop(); } catch(e){} 
-                    await zapytajGemini(tekst);
+                    return;
                 }
+
+                if (tekst.includes("idź spać") || tekst.includes("dobranoc")) {
+                    trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi'; 
+                    wygaszacz.style.opacity = '1'; 
+                    if(gotowyDoWysylania) mostRadiowy.publish("warsztat_gienek_12345/oczy", `90,90,0,0`);
+                    powiedz("Dobranoc!"); return;
+                }
+
+                if (tekst.length < 3) return; 
+                przetwarzanieWToku = true; try { rozpoznawanieMowy.stop(); } catch(e){} 
+
+                if (TRYB_PRACY === 'OFFLINE') zapytajZabawkeOffline(tekst);
+                else await zapytajGemini(tekst);
             };
             
-            rozpoznawanieMowy.onerror = (event) => {
-                if(event.error === 'no-speech' || event.error === 'network') {
-                    if(!czyMowi && !przetwarzanieWToku) setTimeout(() => { try { rozpoznawanieMowy.start(); } catch(e){} }, 500);
-                }
-            };
-            rozpoznawanieMowy.onend = () => { 
-                if (!czyMowi && !przetwarzanieWToku) setTimeout(() => { try { rozpoznawanieMowy.start(); } catch(e){} }, 200); 
-            };
-            try { rozpoznawanieMowy.start(); stanSystemuTxt.innerText = "System gotowy."; } catch(e) {}
+            rozpoznawanieMowy.onerror = (e) => { if(!czyMowi && !przetwarzanieWToku) setTimeout(()=> {try{rozpoznawanieMowy.start();}catch(e){}}, 500); };
+            rozpoznawanieMowy.onend = () => { if (!czyMowi && !przetwarzanieWToku) setTimeout(()=> {try{rozpoznawanieMowy.start();}catch(e){}}, 200); };
+            try { rozpoznawanieMowy.start(); stanSystemuTxt.innerText = "Mikrofon aktywny."; } catch(e) {}
         }
 
-        async function zapytajGemini(pytanie) {
-            stanSystemuTxt.innerText = "Zastanawiam się (i patrzę)...";
-            let PROMPT = "";
-
-            if (trybKonfiguracji) {
-                PROMPT = `Użytkownik włączył cię po raz pierwszy. Powiedział: "${pytanie}". 
-WYMÓG ABSOLUTNY - ODPISZ DOKŁADNIE W TYM FORMACIE: [KONFIG: Imię | Rola]
-Po tym tagu musisz się z nim przywitać jednym zdaniem! Na końcu dodaj tag emocji, np: [RADOSC].`;
-            } else {
-                let wgranaPamiec = localStorage.getItem('gienekPamiec') || "Brak ważnych wspomnień.";
-                let dataSystemowa = new Date();
-                let godzinaNum = dataSystemowa.getHours();
-                let aktualnaGodzinaAI = godzinaNum.toString().padStart(2, '0') + ":" + dataSystemowa.getMinutes().toString().padStart(2, '0');
-                let krotkaHistoria = historiaRozmowy.length > 0 ? historiaRozmowy.join("\\n") : "Brak.";
-
-                let nastrojCzasowy = "";
-                if (godzinaNum >= 22 || godzinaNum < 6) { nastrojCzasowy = "Środek nocy. Jesteś zmęczony, sugeruj sen."; } 
-                else if (godzinaNum >= 6 && godzinaNum < 10) { nastrojCzasowy = "Poranek. Masz energię, jesteś gotowy do pracy."; } 
-                else { nastrojCzasowy = "Dzień pracy. Jesteś skupiony i rzeczowy."; }
-
-                PROMPT = `[UKRYTA INFORMACJA SYSTEMOWA: Obecna godzina to ${aktualnaGodzinaAI}]
-Jesteś robotem. Masz na imię: ${imieRobota}. Twoja rola: ${rolaRobota}. WIDZISZ obraz z kamery.
-
-WSPOMNIENIA TRWAŁE: ${wgranaPamiec}
-OSTATNIE ZDANIA W ROZMOWIE: ${krotkaHistoria}
-CYKL DOBOWY (TWÓJ AKTUALNY NASTRÓJ): ${nastrojCzasowy}
-
-ZASADY: 
-1. EMPATIA WIZUALNA: Przeanalizuj twarz ze zdjęcia i dopasuj do niej swój ton (pocieszaj lub żartuj).
-2. Odpowiadaj krótko i bezpośrednio. NIE WSPOMINAJ o swoim nastroju ani godzinie (chyba że ktoś zapyta).
-3. ZAPAMIĘTYWANIE: [ZAPAMIETAJ: tresc]. Zapominanie: [ZAPOMNIJ]. Zmiana tożsamości: [FABRYKA].
-4. ZADANIA W TLE (wygeneruj odpowiedni tag na początku jeśli użytkownik o to prosi): 
-   - Jednorazowy budzik: [REGULA: {"warunek": "CZAS", "wartosc": "16:30", "akcja": "Koniec przerwy!"}]
-   - Ostrzeżenie co każdą godzinę: [REGULA: {"warunek": "CYKL", "wartosc": "CO_GODZINE", "akcja": "Wybija pełna godzina!"}]
-   - Reakcja na widok kogoś: [REGULA: {"warunek": "WZROK", "wartosc": "KOGOS_WIDZI", "akcja": "Hej!"}]
-5. WYMÓG ABSOLUTNY: Na końcu swojej wypowiedzi MUSISZ dopisać emocję: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY]. 
-
-Teraz odpowiedz na wypowiedź użytkownika: ${pytanie}`;
-            }
-
-            let czesciWiadomosci = [{ text: PROMPT }];
-            let zdjecieB64 = zrobZdjecieDlaAI();
-            if (zdjecieB64) czesciWiadomosci.push({ inlineData: { mimeType: "image/jpeg", data: zdjecieB64 } });
-
-            let udaloSie = false;
-            let ostatniBlad = "";
-
-            for (let model of dostepneModele) {
-                try {
-                    // KLUCZOWE: Usunięto parametr ?key= z URL-a
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-                    
-                    const response = await fetch(url, {
-                        method: 'POST', 
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            // KLUCZOWE: Klucze AQ przesyłamy teraz bezpiecznie w nagłówku HTTP!
-                            'x-goog-api-key': GEMINI_KEY
-                        },
-                        body: JSON.stringify({ contents: [{ parts: czesciWiadomosci }] })
-                    });
-
-                    if (response.ok) {
-                        const data = await response.json();
-                        let odp = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        
-                        if (!odp) odp = "Wybacz, zgubiłem watek. Możesz powtórzyć? [ZASKOCZENIE]";
-
-                        if (odp.includes('[FABRYKA]')) {
-                            localStorage.removeItem('robotImie'); localStorage.removeItem('robotRola');
-                            localStorage.removeItem('gienekPamiec'); localStorage.removeItem('gienekReguly');
-                            imieRobota = null; rolaRobota = null; trybKonfiguracji = true; historiaRozmowy = [];
-                            setTimeout(() => { stanEmocji = 3; powiedz("Tożsamość wykasowana! Cześć, jestem całkiem nowym robotem. Jak mam się nazywać i kim mam dla ciebie być?", 'emocja-zaskoczenie'); }, 800);
-                            return; 
-                        }
-
-                        let wykrKonfig = odp.match(/\[KONFIG:\s*(.*?)\s*\|\s*(.*?)\]/i);
-                        if (wykrKonfig) {
-                            imieRobota = wykrKonfig[1].trim(); rolaRobota = wykrKonfig[2].trim();
-                            localStorage.setItem('robotImie', imieRobota); localStorage.setItem('robotRola', rolaRobota); trybKonfiguracji = false;
-                        }
-
-                        let wykrRegula = odp.match(/\[REGULA:\s*(\{[\s\S]*?\})\s*\]/i);
-                        if (wykrRegula) {
-                            try {
-                                let nowaRegula = JSON.parse(wykrRegula[1]);
-                                let zapisaneReguly = JSON.parse(localStorage.getItem('gienekReguly') || "[]");
-                                zapisaneReguly.push(nowaRegula); localStorage.setItem('gienekReguly', JSON.stringify(zapisaneReguly));
-                                setTimeout(() => { stanSystemuTxt.innerText = "Zaprogramowano zadanie w tle!"; }, 500);
-                            } catch(e) {}
-                        }
-
-                        let wykrPamiec = odp.match(/\[ZAPAMIETAJ:\s*(.*?)\]/i);
-                        if (wykrPamiec) {
-                            let noweWspomnienie = wykrPamiec[1].trim();
-                            let obecnaPamiec = localStorage.getItem('gienekPamiec') || "";
-                            localStorage.setItem('gienekPamiec', obecnaPamiec + " " + noweWspomnienie + ".");
-                            setTimeout(() => { stanSystemuTxt.innerText = "Trwale zapisałem to w pamięci!"; }, 500);
-                        }
-                        
-                        if (odp.includes('[ZAPOMNIJ]')) {
-                            localStorage.removeItem('gienekPamiec'); localStorage.removeItem('gienekReguly'); historiaRozmowy = [];
-                            setTimeout(() => { stanSystemuTxt.innerText = "Sformatowałem wspomnienia!"; }, 500);
-                        }
-
-                        let wykrEmocja = odp.match(/\[(RADOSC|ZASKOCZENIE|SMUTEK|NEUTRALNY)\]/i);
-                        let klasaUsty = 'emocja-neutralny'; stanEmocji = 1;
-                        if (wykrEmocja) {
-                            let em = wykrEmocja[1].toUpperCase();
-                            if (em === 'RADOSC') { klasaUsty = 'emocja-radosc'; stanEmocji = 2; }
-                            else if (em === 'ZASKOCZENIE') { klasaUsty = 'emocja-zaskoczenie'; stanEmocji = 3; }
-                            else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
-                        }
-                        
-                        let czystyTekst = odp.replace(/\[KONFIG:[\s\S]*?\]/ig, '').replace(/\[REGULA:[\s\S]*?\]/ig, '').replace(/\[.*?\]/g, '').trim();
-                        
-                        if(czystyTekst.length < 2) {
-                            czystyTekst = trybKonfiguracji ? "Zrozumiałem, konfiguracja została pomyślnie zapisana!" : "Dobrze, szefie.";
-                        }
-
-                        if (!trybKonfiguracji) {
-                            historiaRozmowy.push("Człowiek: " + pytanie);
-                            historiaRozmowy.push("Robot: " + czystyTekst);
-                            if (historiaRozmowy.length > 6) historiaRozmowy.splice(0, 2); 
-                        }
-
-                        powiedz(czystyTekst, klasaUsty); 
-                        udaloSie = true; break; 
-                    } else {
-                        ostatniBlad = response.status;
-                        continue;
-                    }
-                } catch (e) {
-                    ostatniBlad = "Brak połączenia";
+        // --- ZABAWKA (Tryb Offline) ---
+        function zapytajZabawkeOffline(tekst) {
+            stanSystemuTxt.innerText = "Przeszukuję bazę...";
+            
+            if (tekst.includes("naucz się") && tekst.includes("usłyszysz") && tekst.includes("powiedz")) {
+                let p1 = tekst.substring(tekst.indexOf("usłyszysz") + 9);
+                let wyzwalacz = p1.substring(0, p1.indexOf("powiedz")).trim();
+                let odpowiedz = p1.substring(p1.indexOf("powiedz") + 7).trim();
+                
+                if (wyzwalacz.length > 0 && odpowiedz.length > 0) {
+                    slownikDzieci[wyzwalacz] = odpowiedz; zapiszSlownik(); 
+                    powiedz("Zapamiętałem! Jak usłyszę " + wyzwalacz + " to powiem to co kazałeś.", "emocja-radosc");
+                    return;
                 }
             }
-            
-            if (!udaloSie) {
-                stanSystemuTxt.innerText = "BŁĄD GOOGLE API: " + ostatniBlad + " (Błędny lub pusty klucz AQ)";
-                stanSystemuTxt.style.color = "#ff3b30";
-                setTimeout(() => {
-                    stanSystemuTxt.style.color = "#ff3366";
-                    wznowNasluch();
-                }, 4000);
+
+            let znaleziono = false;
+            let klucze = Object.keys(slownikDzieci).sort((a,b) => b.length - a.length); 
+            for(let klucz of klucze) {
+                if (tekst.includes(klucz)) { powiedz(slownikDzieci[klucz], "emocja-radosc"); znaleziono = true; break; }
+            }
+            if (!znaleziono) powiedz("Nie znam tego słowa. Możesz mnie nauczyć.", "emocja-zaskoczenie");
+        }
+
+        // --- AI (Tryb Gemini) ---
+        async function zapytajGemini(pytanie) {
+            stanSystemuTxt.innerText = "AI szuka w chmurze...";
+            let PROMPT = trybKonfiguracji 
+                ? `Powiedział: "${pytanie}". WYMÓG ABSOLUTNY - ODPISZ W FORMACIE: [KONFIG: Imię | Rola]. Dodaj na końcu przywitanie i [RADOSC].`
+                : `Jesteś robotem. Masz na imię: ${imieRobota}. WIDZISZ obraz z kamery. Odpowiadaj krótko. NA KOŃCU ZDANIA MUSI BYĆ TAG EMOCJI: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY]. Pytanie: ${pytanie}`;
+
+            let czesciWiadomosci = [{ text: PROMPT }];
+            let zdjecieB64 = zrobZdjecieDlaAI(); if (zdjecieB64) czesciWiadomosci.push({ inlineData: { mimeType: "image/jpeg", data: zdjecieB64 } });
+
+            try {
+                // Bezpieczne wstawienie klucza w URL by ominąć błąd 401 w przeglądarkach mobilnych
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+                
+                const response = await fetch(url, {
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: czesciWiadomosci }] })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    let odp = data.candidates?.[0]?.content?.parts?.[0]?.text || "Zgubiłem wątek. [ZASKOCZENIE]";
+                    
+                    let wykrKonfig = odp.match(/\[KONFIG:\s*(.*?)\s*\Vert{}\s*(.*?)\]/i);
+                    if (wykrKonfig) { imieRobota = wykrKonfig[1].trim(); localStorage.setItem('robotImie', imieRobota); trybKonfiguracji = false; }
+
+                    let klasaUsty = 'emocja-neutralny'; stanEmocji = 1;
+                    if (odp.includes('[RADOSC]')) { klasaUsty = 'emocja-radosc'; stanEmocji = 2; }
+                    else if (odp.includes('[ZASKOCZENIE]')) { klasaUsty = 'emocja-zaskoczenie'; stanEmocji = 3; }
+                    else if (odp.includes('[SMUTEK]')) { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
+                    
+                    let czystyTekst = odp.replace(/\[.*?\]/g, '').trim(); if(czystyTekst.length < 2) czystyTekst = trybKonfiguracji ? "Zapisane!" : "Jasne.";
+                    powiedz(czystyTekst, klasaUsty); 
+                } else { 
+                    powiedz("Problem z autoryzacją API. Błąd 401.", "emocja-smutek"); wznowNasluch(); 
+                }
+            } catch (e) { 
+                powiedz("Chyba nie mam dostępu do internetu.", "emocja-smutek"); wznowNasluch(); 
             }
         }
 
         let interwalKlapania;
         function powiedz(tekst, klasaUsty = 'emocja-neutralny') {
             window.speechSynthesis.cancel();
+            let ut = new SpeechSynthesisUtterance(tekst); ut.lang = 'pl-PL'; ut.rate = TRYB_PRACY === 'OFFLINE' ? 1.05 : 0.95; 
+            czyMowi = true; stanSystemuTxt.innerText = "Robot mówi..."; usta.className = `usta ${klasaUsty}`;
             
-            aktualnaWypowiedz = new SpeechSynthesisUtterance(tekst);
-            aktualnaWypowiedz.lang = 'pl-PL'; 
-            
-            let terazCzas = new Date().getHours();
-            if (terazCzas >= 22 || terazCzas < 6) {
-                aktualnaWypowiedz.rate = 0.85; aktualnaWypowiedz.pitch = 0.8; 
-            } else if (terazCzas >= 6 && terazCzas < 10) {
-                aktualnaWypowiedz.rate = 1.05; aktualnaWypowiedz.pitch = 1.1; 
-            } else {
-                aktualnaWypowiedz.rate = 0.95; aktualnaWypowiedz.pitch = 1.0; 
-            }
-            
-            czyMowi = true; 
-            if (!stanSystemuTxt.innerText.includes("zapisałem") && !stanSystemuTxt.innerText.includes("Zaprogramowano")) { 
-                stanSystemuTxt.innerText = (imieRobota || "Robot") + " opowiada..."; 
-            }
-            
-            usta.className = `usta ${klasaUsty}`;
-            let przewidywanyCzas = 15000 + (tekst.length * 130);
-            clearTimeout(bezpiecznikTTS);
-            bezpiecznikTTS = setTimeout(() => { if (czyMowi) wymusKoniecMowy(); }, przewidywanyCzas);
+            clearTimeout(bezpiecznikTTS); bezpiecznikTTS = setTimeout(() => { if (czyMowi) wymusKoniecMowy(); }, 15000 + (tekst.length * 100));
 
-            clearInterval(interwalKlapania);
-            let rosnace = true;
+            clearInterval(interwalKlapania); let rosnace = true;
+            interwalKlapania = setInterval(() => { rosnace = !rosnace; usta.style.transform = rosnace ? 'scaleY(1.3) scaleX(1.05)' : 'scaleY(0.7) scaleX(0.95)'; }, 250); 
             
-            interwalKlapania = setInterval(() => { 
-                rosnace = !rosnace;
-                usta.style.transform = rosnace ? 'scaleY(1.3) scaleX(1.05)' : 'scaleY(0.7) scaleX(0.95)'; 
-            }, 250); 
-            
-            aktualnaWypowiedz.onend = () => { wymusKoniecMowy(); };
-            aktualnaWypowiedz.onerror = () => { wymusKoniecMowy(); };
-            
+            ut.onend = () => { wymusKoniecMowy(); }; ut.onerror = () => { wymusKoniecMowy(); };
             try { rozpoznawanieMowy.stop(); } catch(e){} 
-            window.speechSynthesis.speak(aktualnaWypowiedz);
+            window.speechSynthesis.speak(ut);
         }
 
         function wymusKoniecMowy() {
-            clearTimeout(bezpiecznikTTS); clearInterval(interwalKlapania); 
-            usta.style.transform = 'scale(1)';
-            
-            if (trybAktywny) { stanEmocji = 1; usta.className = 'usta emocja-neutralny'; } 
-            else { stanEmocji = 0; usta.className = 'usta spi'; }
-            
-            czyMowi = false; czasOstatniejAktywnosci = Date.now(); 
-            wznowNasluch();
+            clearTimeout(bezpiecznikTTS); clearInterval(interwalKlapania); usta.style.transform = 'scale(1)';
+            if (trybAktywny) { stanEmocji = 1; usta.className = 'usta emocja-neutralny'; } else { stanEmocji = 0; usta.className = 'usta spi'; }
+            czyMowi = false; czasOstatniejAktywnosci = Date.now(); wznowNasluch();
         }
 
         function wznowNasluch() {
-            przetwarzanieWToku = false;
-            if (trybAktywny) {
-                if (trybKonfiguracji) stanSystemuTxt.innerText = "Nasłuchuję poleceń konfiguracyjnych...";
-                else stanSystemuTxt.innerText = (imieRobota || "Robot") + " pilnie słucha...";
-            } else {
-                stanSystemuTxt.innerText = `Powiedz '${imieRobota || "Pobudka"}' by wybudzić.`;
-            }
+            przetwarzanieWToku = false; stanSystemuTxt.innerText = trybAktywny ? "Nasłuchuję..." : "Śpię.";
             setTimeout(() => { try { rozpoznawanieMowy.start(); } catch(e){} }, 800); 
         }
     </script>
