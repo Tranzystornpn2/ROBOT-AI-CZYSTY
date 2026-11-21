@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Czysty Robot 27.3 (Groq + Nauka + Fix Snu)</title>
+    <title>Czysty Robot 27.4 (Zegar + Wzrok + Czuwanie)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -21,8 +21,9 @@
         .emocja-smutek { width: 60%; max-width: 200px; height: 45px; border-radius: 100px 100px 20px 20px; background-color: #8833ff; box-shadow: 0 0 30px rgba(136,51,255,0.6); }
         .spi { width: 30%; max-width: 150px; height: 8px; border-radius: 10px; background: #444; box-shadow: none; transform: scale(1) !important; }
         
-        #debug { font-size: 14px; color: #888; text-align: center; position: absolute; bottom: 20px; width: 92%; word-break: break-word; }
-        .mqtt-status { font-weight: bold; color: #555; display: block; margin-top: 5px; font-size: 12px; }
+        #debug { font-size: 14px; color: #888; text-align: center; position: absolute; bottom: 16px; width: 92%; word-break: break-word; }
+        .mqtt-status { font-weight: bold; color: #555; display: block; margin-top: 4px; font-size: 12px; }
+        .model-info { color: #666; display: block; margin-top: 3px; font-size: 11px; }
         
         #ustawieniaBtn { position: absolute; top: 20px; right: 20px; font-size: 35px; background: none; border: none; cursor: pointer; display: none; z-index: 50; }
         #panelTrymera, #apiModal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20,20,20,0.97); padding: 25px; border-radius: 15px; text-align: center; border: 2px solid #00ffcc; z-index: 200; width: 82%; max-width: 350px; }
@@ -46,6 +47,7 @@
     <div id="debug">
         <span id="stanSystemu" style="color: #ff3366;">Robot śpi...</span>
         <span id="mqttStatus" class="mqtt-status">Sieć Neuralna: OFF</span>
+        <span id="modelInfo" class="model-info">AI: oczekuje</span>
     </div>
 
     <div id="apiModal">
@@ -86,18 +88,33 @@
         const usta = document.getElementById('ustaGienka');
         const stanSystemuTxt = document.getElementById('stanSystemu');
         const mqttStatus = document.getElementById('mqttStatus');
+        const modelInfoTxt = document.getElementById('modelInfo');
         const videoElement = document.getElementById('webcam');
+
+        // Bufor klatki kamery dla AI
+        const captureCanvas = document.createElement('canvas');
+        captureCanvas.width = 480;
+        captureCanvas.height = 360;
+        const captureCtx = captureCanvas.getContext('2d');
+        let ostatniaKlatkaB64 = null;
+        let czasOstatniegoZrzutu = 0;
 
         let mostRadiowy = null; let gotowyDoWysylania = false; let ostWysylka = 0;
         let rozpoznawanieMowy = null; let trybAktywny = false; let czyMowi = false;
         let aktualnaWypowiedz = null;
         let uruchomiony = false;
-        
+
+        // --- TRYB CZUWANIA NA TWARZ ---
+        let trybCzuwaniaNaTwarz = false;
+        let czasStartuCzuwania = 0;
+        let zniknalZKadru = false;
+        let poczatekWidzeniaCzuwanie = 0;
+
         let przetwarzanieWToku = false;
         let bezpiecznikTTS = null;
         let czasOstatniejAktywnosci = Date.now();
         let stanEmocji = 0;
-        
+
         let offsetX = parseInt(localStorage.getItem('gienekOffsetX')) || 0;
         let offsetY = parseInt(localStorage.getItem('gienekOffsetY')) || 0;
 
@@ -182,16 +199,41 @@
             setTimeout(() => { if (!trybAktywny) wyslijDoESP(cx, cy, 0, 0, true); }, 250);
         }
 
-        function uspijRobota(komunikat) {
+        function uspijRobota(komunikat, zCzuwaniem = false) {
             trybAktywny = false;
+            trybCzuwaniaNaTwarz = zCzuwaniem;
+            czasStartuCzuwania = Date.now();
+            zniknalZKadru = false;
+            poczatekWidzeniaCzuwanie = 0;
             usta.className = 'usta spi';
             wymusZamkniecieOczu();
             if (komunikat) {
                 powiedz(komunikat, 'emocja-neutralny');
             } else {
-                stanSystemuTxt.style.color = "#888";
+                aktualizujStatusSnu();
+            }
+        }
+
+        function aktualizujStatusSnu() {
+            stanSystemuTxt.style.color = "#888";
+            if (trybCzuwaniaNaTwarz) {
+                stanSystemuTxt.innerText = zniknalZKadru
+                    ? "Czuwam (uzbrojony) — obudzę się, jak kogoś zobaczę."
+                    : "Czuwam... odejdź na chwilę z kadru, żebym uzbroił kamerę.";
+            } else {
                 stanSystemuTxt.innerText = `Śpię. Powiedz "${imieRobota || "robot"}", by wybudzić.`;
             }
+        }
+
+        function przechwycKlatke() {
+            try {
+                if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
+                    captureCtx.drawImage(videoElement, 0, 0, captureCanvas.width, captureCanvas.height);
+                    ostatniaKlatkaB64 = captureCanvas.toDataURL('image/jpeg', 0.72).split(',')[1];
+                    return ostatniaKlatkaB64;
+                }
+            } catch (e) {}
+            return ostatniaKlatkaB64;
         }
 
         function uruchomiOS() {
@@ -202,15 +244,10 @@
             stanSystemuTxt.style.color = "#ff3366";
             stanSystemuTxt.innerText = "Start systemów...";
             uruchomSluch();
-            setTimeout(uruchomReszte, 100);
+            setTimeout(uruchomReszte, 150);
         }
 
         async function uruchomReszte() {
-            try {
-                const strumien = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } });
-                videoElement.srcObject = strumien;
-            } catch (e) { }
-
             const unikalnyID = 'robot_czysty_' + Math.random().toString(16).substring(2, 10);
             mostRadiowy = mqtt.connect('wss://broker.emqx.io:8084/mqtt', { clientId: unikalnyID, keepalive: 60, clean: true });
             mostRadiowy.on('connect', () => {
@@ -219,10 +256,10 @@
                 mqttStatus.style.color = "#ff3366";
                 if (!trybAktywny) wymusZamkniecieOczu();
             });
-            
-            setTimeout(uruchomWzrok, 500);
 
-            // Pierwsze uruchomienie czystego robota — od razu się budzi i prosi o naukę
+            // Jedno czyste źródło kamery (przez MediaPipe Camera — bez konfliktu na iOS)
+            uruchomWzrok();
+
             setTimeout(() => {
                 if (!imieRobota) {
                     trybAktywny = true;
@@ -231,8 +268,7 @@
                     powiedz("Cześć! Jestem zupełnie czystym robotem i nic jeszcze o sobie nie wiem. Jak mam się nazywać i kim mam być?", "emocja-zaskoczenie");
                 } else {
                     wymusZamkniecieOczu();
-                    stanSystemuTxt.style.color = "#888";
-                    stanSystemuTxt.innerText = `Śpię. Powiedz "${imieRobota}" lub "robot", by wybudzić.`;
+                    aktualizujStatusSnu();
                 }
             }, 1400);
         }
@@ -242,7 +278,10 @@
             faceDetection.setOptions({ model: 'short', minDetectionConfidence: 0.5 });
 
             faceDetection.onResults((results) => {
-                // Podczas snu oczy są zablokowane na środku i powieki zamknięte
+                let teraz = Date.now();
+                const maTwarz = Boolean(results.detections && results.detections.length > 0);
+
+                // --- LOGIKA PODCZAS SNU / CZUWANIA ---
                 if (!trybAktywny) {
                     const cx = Math.max(0, Math.min(180, 90 + offsetX));
                     const cy = Math.max(0, Math.min(180, 90 + offsetY));
@@ -250,15 +289,39 @@
                     glatkiY = cy;
                     stanEmocji = 0;
                     wyslijDoESP(cx, cy, 0, 0);
+
+                    if (trybCzuwaniaNaTwarz && !czyMowi && (teraz - czasStartuCzuwania > 4000)) {
+                        if (!zniknalZKadru) {
+                            if (!maTwarz) {
+                                zniknalZKadru = true;
+                                aktualizujStatusSnu();
+                            }
+                        } else {
+                            if (maTwarz) {
+                                if (poczatekWidzeniaCzuwanie === 0) poczatekWidzeniaCzuwanie = teraz;
+                                if (teraz - poczatekWidzeniaCzuwanie >= 1200) {
+                                    trybCzuwaniaNaTwarz = false;
+                                    trybAktywny = true;
+                                    stanEmocji = 2;
+                                    czasOstatniejAktywnosci = teraz;
+                                    poczatekWidzeniaCzuwanie = 0;
+                                    wyslijDoESP(cx, cy, 1, 2, true);
+                                    powiedz("O, cześć! Widzę cię, już się obudziłem!", "emocja-radosc");
+                                }
+                            } else {
+                                poczatekWidzeniaCzuwanie = 0;
+                            }
+                        }
+                    }
                     return;
                 }
 
-                let teraz = Date.now();
+                // --- LOGIKA AKTYWNA ---
                 let docelowyX = 90 + offsetX;
                 let docelowyY = 90 + offsetY;
                 let widziKogos = false;
 
-                if (results.detections && results.detections.length > 0) {
+                if (maTwarz) {
                     try {
                         const box = results.detections[0].boundingBox;
                         let cx = (box.xCenter !== undefined) ? box.xCenter : ((box.xMin || box.xmin || 0) + (box.width / 2));
@@ -289,7 +352,7 @@
 
                 if (trybAktywny && !czyMowi && !przetwarzanieWToku) {
                     if (teraz - czasOstatniejAktywnosci > 35000) {
-                        uspijRobota("Zrobię sobie krótką drzemkę. Zawołaj mnie, gdy będziesz mnie potrzebować!");
+                        uspijRobota("Zrobię sobie krótką drzemkę. Zawołaj mnie, gdy będziesz mnie potrzebować!", false);
                         return;
                     }
                 }
@@ -306,10 +369,16 @@
                     let teraz = Date.now();
                     if (teraz - czasOstatniejKlatki > 150) {
                         czasOstatniejKlatki = teraz;
+                        if (teraz - czasOstatniegoZrzutu > 1000) {
+                            czasOstatniegoZrzutu = teraz;
+                            przechwycKlatke();
+                        }
                         try { await faceDetection.send({ image: videoElement }); } catch (e) {}
                     }
                 },
-                width: 320, height: 240
+                facingMode: 'user',
+                width: 480,
+                height: 360
             });
             camera.start();
         }
@@ -319,17 +388,6 @@
             if (!wymus && (Date.now() - ostWysylka < 50)) return;
             ostWysylka = Date.now();
             mostRadiowy.publish("warsztat_gienek_12345/oczy", `${x},${y},${widzi},${emocja}`);
-        }
-
-        function zrobZdjecieDlaAI() {
-            try {
-                if (!videoElement.videoWidth) return null;
-                const canvas = document.createElement('canvas');
-                canvas.width = 320; canvas.height = 240;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-                return canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-            } catch (e) { return null; }
         }
 
         function czySlowoWybudzenia(tekst) {
@@ -357,13 +415,23 @@
 
                 if (!trybAktywny) {
                     if (czySlowoWybudzenia(tekst)) {
-                        trybAktywny = true; stanEmocji = 1; usta.className = 'usta emocja-neutralny';
+                        trybAktywny = true;
+                        trybCzuwaniaNaTwarz = false;
+                        stanEmocji = 1;
+                        usta.className = 'usta emocja-neutralny';
                         wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), 1, 1, true);
                         powiedz(imieRobota ? "Jestem! Słucham uważnie." : "Obudziłem się! Słucham.");
                     }
                 } else {
-                    if (tekst.includes("spać") || tekst.includes("śpij") || tekst.includes("wyłącz się") || tekst.includes("dobranoc") || tekst.includes("drzemk")) {
-                        uspijRobota("Dobranoc, idę spać!");
+                    const chceSpac = tekst.includes("spać") || tekst.includes("śpij") || tekst.includes("wyłącz się") || tekst.includes("dobranoc") || tekst.includes("drzemk");
+                    const warunekKamery = tekst.includes("zobacz") || tekst.includes("kogoś") || tekst.includes("ktoś") || tekst.includes("twarz") || tekst.includes("obudź") || tekst.includes("czuwaj") || tekst.includes("podejdzie") || tekst.includes("wejdzie");
+
+                    if (chceSpac && warunekKamery) {
+                        uspijRobota("Dobrze, zamykam oczy i czuwam. Obudzę się, jak tylko kogoś zobaczę!", true);
+                        return;
+                    }
+                    if (chceSpac) {
+                        uspijRobota("Dobranoc, idę spać!", false);
                         return;
                     }
 
@@ -406,11 +474,14 @@
             let czatowe = wszystkie.filter(id => !wykluczone.test(id));
             if (czatowe.length === 0) czatowe = wszystkie;
 
+            // Priorytet 1: modele z wizją (Llama 4 Scout / Maverick / Vision)
             czatowe.sort((a, b) => {
                 const waga = (id) => {
-                    if (/llama-4|scout|maverick|vision|vl|multimodal/i.test(id)) return 1;
-                    if (/llama|qwen|gpt-oss|kimi|gemma/i.test(id)) return 2;
-                    return 3;
+                    if (/llama-4-scout/i.test(id)) return 1;
+                    if (/llama-4-maverick/i.test(id)) return 2;
+                    if (/llama-4|vision|vl|multimodal/i.test(id)) return 3;
+                    if (/llama-3\.3|llama-3|qwen|gpt-oss|kimi|gemma/i.test(id)) return 4;
+                    return 5;
                 };
                 return waga(a) - waga(b);
             });
@@ -449,6 +520,17 @@
                 return;
             }
 
+            // Aktualna data i godzina z zegara telefonu
+            const teraz = new Date();
+            const aktualnaDataCzas = teraz.toLocaleString('pl-PL', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
             const statusTozsamosci = imieRobota
                 ? `Twoje nauczone imię: ${imieRobota}.`
                 : `NIE MASZ JESZCZE IMIENIA. Jesteś czystym, nowo uruchomionym robotem, który dopiero poznaje świat.`;
@@ -465,9 +547,14 @@
                 ? "\nOSTATNIA ROZMOWA:\n" + historiaRozmowy.map(h => `${h.kto}: ${h.tekst}`).join("\n")
                 : "";
 
-            const PROMPT = `Jesteś fizycznym, ciekawym świata robotem z ruchomymi oczami i kamerą, który uczy się wszystkiego od swojego rozmówcy.
+            const zbudujPrompt = (maObraz) => `Jesteś fizycznym, ciekawym świata robotem z ruchomymi oczami i kamerą, który uczy się wszystkiego od swojego rozmówcy.
+AKTUALNA DATA I GODZINA (Twój wbudowany zegar): ${aktualnaDataCzas}.
 ${statusTozsamosci}
 ${statusRoli}
+
+STATUS KAMERY: ${maObraz
+    ? "MASZ ZAŁĄCZONE AKTUALNE ZDJĘCIE ZE SWOJEJ KAMERY. Zawsze korzystaj z tego obrazu i opisz po polsku to, co widzisz, gdy rozmówca o to pyta."
+    : "Chwilowo działasz bez obrazu z kamery — jeśli rozmówca pyta co widzisz, powiedz krótko, że ten model chwilowo nie ma podglądu z kamery."}
 
 TWOJA TRWAŁA PAMIĘĆ (wszystko, czego do tej pory się nauczyłeś):
 ${listaPamieci}${historiaTekst}
@@ -475,32 +562,37 @@ ${listaPamieci}${historiaTekst}
 ZASADY:
 1. Odpowiadaj WYŁĄCZNIE po polsku, naturalnym prostym tekstem do czytania na głos (bez gwiazdek, list wypunktowanych i emotikon).
 2. Odpowiadaj krótko i naturalnie (2-3 zdania), chyba że rozmówca prosi o dłuższą opowieść lub bajkę. Nie witaj się ponownie w środku rozmowy.
-3. Jeśli dostałeś obraz z kamery i rozmówca pyta co widzisz, krótko opisz zdjęcie.
+3. Jeśli rozmówca pyta o godzinę, dzień tygodnia lub datę — podaj ją na podstawie Twojego wbudowanego zegara powyżej.
 4. UCZENIE SIĘ I STEROWANIE (niewidoczne tagi na SAMYM POCZĄTKU odpowiedzi):
    - Gdy rozmówca nadaje lub zmienia Twoje imię: [IMIE: NoweImie]
    - Gdy rozmówca określa kim masz być, jaki masz mieć charakter lub dla kogo jesteś: [ROLA: krotki opis roli]
    - Gdy rozmówca uczy Cię jakiegokolwiek nowego faktu (imiona domowników, upodobania, zasady, wiedza): [ZAPAMIETAJ: krotki konkretny fakt]
    - Gdy rozmówca każe Ci zapomnieć wszystko / zresetować pamięć: [ZAPOMNIJ]
-   - Gdy rozmówca żegna się albo każe Ci iść spać / zamknąć oczy / odpocząć: [SPAC]
+   - Gdy rozmówca żegna się albo każe Ci iść spać na stałe: [SPAC]
+   - Gdy rozmówca każe Ci spać / zamknąć oczy, ale obudzić się jak kogoś zobaczysz: [CZUWAJ]
 5. WYMÓG ABSOLUTNY: Na samym końcu odpowiedzi ZAWSZE dopisz jedną emocję w nawiasie kwadratowym: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY].
 
 Rozmówca powiedział: ${pytanie}`;
 
-            let zdjecieB64 = zrobZdjecieDlaAI();
+            let zdjecieB64 = przechwycKlatke();
             let udaloSie = false;
             let ostatniBlad = "Brak odpowiedzi z serwera Groq";
+            let powodBrakuObrazu = zdjecieB64 ? "" : "brak klatki z kamery";
 
             for (let modelId of aktywneModeleGroq) {
                 stanSystemuTxt.innerText = `Myślę (${modelId})...`;
                 try {
-                    const czyObraz = Boolean(zdjecieB64 && /llama-4|scout|maverick|vision|vl|multimodal/i.test(modelId));
+                    const modelObslugujeObraz = /llama-4|scout|maverick|vision|vl|multimodal/i.test(modelId);
+                    let czyObraz = Boolean(zdjecieB64 && modelObslugujeObraz);
+
                     const wyslij = async (zObrazem) => {
+                        const prompt = zbudujPrompt(zObrazem);
                         const content = zObrazem
                             ? [
-                                { type: "text", text: PROMPT },
+                                { type: "text", text: prompt },
                                 { type: "image_url", image_url: { url: `data:image/jpeg;base64,${zdjecieB64}` } }
                               ]
-                            : PROMPT;
+                            : prompt;
 
                         return await fetch("https://api.groq.com/openai/v1/chat/completions", {
                             method: 'POST',
@@ -512,13 +604,20 @@ Rozmówca powiedział: ${pytanie}`;
                                 model: modelId,
                                 messages: [{ role: "user", content: content }],
                                 temperature: 0.7,
-                                max_tokens: 450
+                                max_completion_tokens: 450
                             })
                         });
                     };
 
                     let response = await wyslij(czyObraz);
                     if (!response.ok && response.status === 400 && czyObraz) {
+                        try {
+                            const errObj = await response.clone().json();
+                            powodBrakuObrazu = `${modelId} odrzucił obraz: ${errObj?.error?.message || "400"}`;
+                        } catch (e) {
+                            powodBrakuObrazu = `${modelId} odrzucił obraz (400)`;
+                        }
+                        czyObraz = false;
                         response = await wyslij(false);
                     }
 
@@ -526,6 +625,10 @@ Rozmówca powiedział: ${pytanie}`;
                         const data = await response.json();
                         let odp = data.choices?.[0]?.message?.content;
                         if (odp) {
+                            modelInfoTxt.innerText = czyObraz
+                                ? `AI: ${modelId} | 👁️ OBRAZ OK`
+                                : `AI: ${modelId} | 📝 TYLKO TEKST (${powodBrakuObrazu || "model bez wizji"})`;
+
                             odp = odp.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
                             let komunikatNauki = "";
 
@@ -557,6 +660,7 @@ Rozmówca powiedział: ${pytanie}`;
                                 komunikatNauki = `Nauczyłem się: ${dopasowaniaFaktow[dopasowaniaFaktow.length - 1][1].trim()}`;
                             }
 
+                            let idzieCzuwac = /\[CZUWAJ\]/i.test(odp);
                             let idzieSpac = /\[SPAC\]/i.test(odp);
 
                             if (komunikatNauki) {
@@ -577,14 +681,16 @@ Rozmówca powiedział: ${pytanie}`;
                             }
 
                             let czystyTekst = odp.replace(/\[.*?\]/g, '').replace(/[*#_`]/g, '').trim();
-                            if (czystyTekst.length < 2) czystyTekst = idzieSpac ? "Dobranoc!" : "Zapamiętałem!";
+                            if (czystyTekst.length < 2) czystyTekst = (idzieSpac || idzieCzuwac) ? "Dobranoc!" : "Zapamiętałem!";
 
                             historiaRozmowy.push({ kto: "Rozmówca", tekst: pytanie });
                             historiaRozmowy.push({ kto: imieRobota || "Robot", tekst: czystyTekst });
                             if (historiaRozmowy.length > 10) historiaRozmowy = historiaRozmowy.slice(-10);
 
-                            if (idzieSpac) {
-                                uspijRobota(czystyTekst);
+                            if (idzieCzuwac) {
+                                uspijRobota(czystyTekst, true);
+                            } else if (idzieSpac) {
+                                uspijRobota(czystyTekst, false);
                             } else {
                                 powiedz(czystyTekst, klasaUsty);
                             }
@@ -597,6 +703,7 @@ Rozmówca powiedział: ${pytanie}`;
                             opis = errData?.error?.message || "";
                         } catch (e) {}
                         ostatniBlad = `BŁĄD ${response.status} (${modelId}): ${opis}`;
+                        if (modelObslugujeObraz) powodBrakuObrazu = `${modelId}: ${response.status}`;
 
                         if (response.status === 401) {
                             stanSystemuTxt.style.color = "#ff3b30";
@@ -660,6 +767,7 @@ Rozmówca powiedział: ${pytanie}`;
                 wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), 1, 1, true);
             } else {
                 usta.className = 'usta spi';
+                if (trybCzuwaniaNaTwarz) czasStartuCzuwania = Date.now();
                 wymusZamkniecieOczu();
             }
             
@@ -674,8 +782,7 @@ Rozmówca powiedział: ${pytanie}`;
                     stanSystemuTxt.style.color = "#ff3366";
                     stanSystemuTxt.innerText = `${imieRobota || "Robot"} pilnie słucha...`;
                 } else {
-                    stanSystemuTxt.style.color = "#888";
-                    stanSystemuTxt.innerText = `Śpię. Powiedz "${imieRobota || "robot"}", by wybudzić.`;
+                    aktualizujStatusSnu();
                 }
             }
             setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 800);
