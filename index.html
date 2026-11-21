@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Czysty Robot 27.4 (Zegar + Wzrok + Czuwanie)</title>
+    <title>Czysty Robot 27.5 (Groq Vision + Zegar + Czuwanie)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -125,6 +125,10 @@
         let czasOstatniejTwarzy = Date.now();
         let mruga = false;
         let czasOstatniejKlatki = 0;
+
+        function czyModelZWizja(id) {
+            return /llama-4|scout|maverick|qwen3\.[5-9]|qwen.*vl|vision|multimodal/i.test(id);
+        }
 
         function cyklMrugania() {
             if (trybAktywny && !czyMowi) { mruga = true; setTimeout(() => { mruga = false; }, 150); }
@@ -257,7 +261,6 @@
                 if (!trybAktywny) wymusZamkniecieOczu();
             });
 
-            // Jedno czyste źródło kamery (przez MediaPipe Camera — bez konfliktu na iOS)
             uruchomWzrok();
 
             setTimeout(() => {
@@ -474,14 +477,15 @@
             let czatowe = wszystkie.filter(id => !wykluczone.test(id));
             if (czatowe.length === 0) czatowe = wszystkie;
 
-            // Priorytet 1: modele z wizją (Llama 4 Scout / Maverick / Vision)
+            // Priorytet dla modeli obsługujących obraz (Llama 4 / Qwen 3.8+ / Vision), dopiero potem tekstowe
             czatowe.sort((a, b) => {
                 const waga = (id) => {
                     if (/llama-4-scout/i.test(id)) return 1;
-                    if (/llama-4-maverick/i.test(id)) return 2;
-                    if (/llama-4|vision|vl|multimodal/i.test(id)) return 3;
-                    if (/llama-3\.3|llama-3|qwen|gpt-oss|kimi|gemma/i.test(id)) return 4;
-                    return 5;
+                    if (/qwen3\.[5-9]/i.test(id)) return 2;
+                    if (/llama-4-maverick/i.test(id)) return 3;
+                    if (czyModelZWizja(id)) return 4;
+                    if (/llama-3\.3|llama-3|gpt-oss|qwen|kimi|gemma/i.test(id)) return 5;
+                    return 6;
                 };
                 return waga(a) - waga(b);
             });
@@ -520,7 +524,6 @@
                 return;
             }
 
-            // Aktualna data i godzina z zegara telefonu
             const teraz = new Date();
             const aktualnaDataCzas = teraz.toLocaleString('pl-PL', {
                 weekday: 'long',
@@ -561,7 +564,7 @@ ${listaPamieci}${historiaTekst}
 
 ZASADY:
 1. Odpowiadaj WYŁĄCZNIE po polsku, naturalnym prostym tekstem do czytania na głos (bez gwiazdek, list wypunktowanych i emotikon).
-2. Odpowiadaj krótko i naturalnie (2-3 zdania), chyba że rozmówca prosi o dłuższą opowieść lub bajkę. Nie witaj się ponownie w środku rozmowy.
+2. Odpowiadaj krótko, naturalnie i bezpośrednio (2-3 zdania), chyba że rozmówca prosi o dłuższą opowieść lub bajkę. Nie witaj się ponownie w środku rozmowy.
 3. Jeśli rozmówca pyta o godzinę, dzień tygodnia lub datę — podaj ją na podstawie Twojego wbudowanego zegara powyżej.
 4. UCZENIE SIĘ I STEROWANIE (niewidoczne tagi na SAMYM POCZĄTKU odpowiedzi):
    - Gdy rozmówca nadaje lub zmienia Twoje imię: [IMIE: NoweImie]
@@ -579,10 +582,11 @@ Rozmówca powiedział: ${pytanie}`;
             let ostatniBlad = "Brak odpowiedzi z serwera Groq";
             let powodBrakuObrazu = zdjecieB64 ? "" : "brak klatki z kamery";
 
-            for (let modelId of aktywneModeleGroq) {
+            for (let idx = 0; idx < aktywneModeleGroq.length; idx++) {
+                let modelId = aktywneModeleGroq[idx];
                 stanSystemuTxt.innerText = `Myślę (${modelId})...`;
                 try {
-                    const modelObslugujeObraz = /llama-4|scout|maverick|vision|vl|multimodal/i.test(modelId);
+                    const modelObslugujeObraz = czyModelZWizja(modelId);
                     let czyObraz = Boolean(zdjecieB64 && modelObslugujeObraz);
 
                     const wyslij = async (zObrazem) => {
@@ -604,7 +608,7 @@ Rozmówca powiedział: ${pytanie}`;
                                 model: modelId,
                                 messages: [{ role: "user", content: content }],
                                 temperature: 0.7,
-                                max_completion_tokens: 450
+                                max_completion_tokens: 1200
                             })
                         });
                     };
@@ -617,6 +621,9 @@ Rozmówca powiedział: ${pytanie}`;
                         } catch (e) {
                             powodBrakuObrazu = `${modelId} odrzucił obraz (400)`;
                         }
+                        const jestInnyModelZWizja = aktywneModeleGroq.slice(idx + 1).some(id => czyModelZWizja(id));
+                        if (jestInnyModelZWizja) continue;
+
                         czyObraz = false;
                         response = await wyslij(false);
                     }
@@ -629,7 +636,7 @@ Rozmówca powiedział: ${pytanie}`;
                                 ? `AI: ${modelId} | 👁️ OBRAZ OK`
                                 : `AI: ${modelId} | 📝 TYLKO TEKST (${powodBrakuObrazu || "model bez wizji"})`;
 
-                            odp = odp.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                            odp = odp.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<think>[\s\S]*$/gi, '').trim();
                             let komunikatNauki = "";
 
                             if (odp.includes('[ZAPOMNIJ]')) {
