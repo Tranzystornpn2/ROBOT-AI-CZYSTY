@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Czysty Robot 27.2 (Groq + Nauka od zera)</title>
+    <title>Czysty Robot 27.3 (Groq + Nauka + Fix Snu)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -101,9 +101,9 @@
         let offsetX = parseInt(localStorage.getItem('gienekOffsetX')) || 0;
         let offsetY = parseInt(localStorage.getItem('gienekOffsetY')) || 0;
 
-        let glatkiX = 90; let glatkiY = 90;
-        let ostatniX = 90; let ostatniY = 90;
-        let celBladzeniaX = 90; let celBladzeniaY = 90;
+        let glatkiX = 90 + offsetX; let glatkiY = 90 + offsetY;
+        let ostatniX = 90 + offsetX; let ostatniY = 90 + offsetY;
+        let celBladzeniaX = 90 + offsetX; let celBladzeniaY = 90 + offsetY;
         let czasZmianyBladzenia = 0;
         let czasOstatniejTwarzy = Date.now();
         let mruga = false;
@@ -172,6 +172,28 @@
             }
         }
 
+        function wymusZamkniecieOczu() {
+            const cx = Math.max(0, Math.min(180, 90 + offsetX));
+            const cy = Math.max(0, Math.min(180, 90 + offsetY));
+            glatkiX = cx;
+            glatkiY = cy;
+            stanEmocji = 0;
+            wyslijDoESP(cx, cy, 0, 0, true);
+            setTimeout(() => { if (!trybAktywny) wyslijDoESP(cx, cy, 0, 0, true); }, 250);
+        }
+
+        function uspijRobota(komunikat) {
+            trybAktywny = false;
+            usta.className = 'usta spi';
+            wymusZamkniecieOczu();
+            if (komunikat) {
+                powiedz(komunikat, 'emocja-neutralny');
+            } else {
+                stanSystemuTxt.style.color = "#888";
+                stanSystemuTxt.innerText = `Śpię. Powiedz "${imieRobota || "robot"}", by wybudzić.`;
+            }
+        }
+
         function uruchomiOS() {
             uruchomiony = true;
             window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
@@ -195,6 +217,7 @@
                 gotowyDoWysylania = true;
                 mqttStatus.innerText = "Sieć Neuralna: ONLINE";
                 mqttStatus.style.color = "#ff3366";
+                if (!trybAktywny) wymusZamkniecieOczu();
             });
             
             setTimeout(uruchomWzrok, 500);
@@ -207,7 +230,9 @@
                     czasOstatniejAktywnosci = Date.now();
                     powiedz("Cześć! Jestem zupełnie czystym robotem i nic jeszcze o sobie nie wiem. Jak mam się nazywać i kim mam być?", "emocja-zaskoczenie");
                 } else {
-                    stanSystemuTxt.innerText = `Powiedz "${imieRobota}" lub "robot", by wybudzić.`;
+                    wymusZamkniecieOczu();
+                    stanSystemuTxt.style.color = "#888";
+                    stanSystemuTxt.innerText = `Śpię. Powiedz "${imieRobota}" lub "robot", by wybudzić.`;
                 }
             }, 1400);
         }
@@ -217,6 +242,17 @@
             faceDetection.setOptions({ model: 'short', minDetectionConfidence: 0.5 });
 
             faceDetection.onResults((results) => {
+                // Podczas snu oczy są zablokowane na środku i powieki zamknięte
+                if (!trybAktywny) {
+                    const cx = Math.max(0, Math.min(180, 90 + offsetX));
+                    const cy = Math.max(0, Math.min(180, 90 + offsetY));
+                    glatkiX = cx;
+                    glatkiY = cy;
+                    stanEmocji = 0;
+                    wyslijDoESP(cx, cy, 0, 0);
+                    return;
+                }
+
                 let teraz = Date.now();
                 let docelowyX = 90 + offsetX;
                 let docelowyY = 90 + offsetY;
@@ -253,19 +289,15 @@
 
                 if (trybAktywny && !czyMowi && !przetwarzanieWToku) {
                     if (teraz - czasOstatniejAktywnosci > 35000) {
-                        trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi';
-                        stanSystemuTxt.innerText = "Brak aktywności. Idę spać...";
-                        powiedz("Zrobię sobie krótką drzemkę. Zawołaj mnie, gdy będziesz mnie potrzebować!");
+                        uspijRobota("Zrobię sobie krótką drzemkę. Zawołaj mnie, gdy będziesz mnie potrzebować!");
+                        return;
                     }
                 }
 
                 glatkiX = glatkiX + (docelowyX - glatkiX) * 0.15;
                 glatkiY = glatkiY + (docelowyY - glatkiY) * 0.15;
 
-                let w = 1;
-                if (!trybAktywny) { w = 0; stanEmocji = 0; }
-                else if (mruga) { w = 0; }
-
+                let w = mruga ? 0 : 1;
                 wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), w, stanEmocji);
             });
 
@@ -282,8 +314,9 @@
             camera.start();
         }
 
-        function wyslijDoESP(x, y, widzi, emocja) {
-            if (!gotowyDoWysylania || Date.now() - ostWysylka < 50) return;
+        function wyslijDoESP(x, y, widzi, emocja, wymus = false) {
+            if (!gotowyDoWysylania) return;
+            if (!wymus && (Date.now() - ostWysylka < 50)) return;
             ostWysylka = Date.now();
             mostRadiowy.publish("warsztat_gienek_12345/oczy", `${x},${y},${widzi},${emocja}`);
         }
@@ -304,7 +337,6 @@
             if (imieRobota) {
                 const im = imieRobota.toLowerCase();
                 if (tekst.includes(im)) return true;
-                // Obsługa odmiany polskich imion (np. Gienek -> Gienku, Zosia -> Zosiu)
                 if (im.length >= 4 && tekst.includes(im.slice(0, 4))) return true;
             }
             return false;
@@ -326,13 +358,13 @@
                 if (!trybAktywny) {
                     if (czySlowoWybudzenia(tekst)) {
                         trybAktywny = true; stanEmocji = 1; usta.className = 'usta emocja-neutralny';
-                        powiedz(imieRobota ? `Jestem! Słucham uważnie.` : `Obudziłem się! Słucham.`);
+                        wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), 1, 1, true);
+                        powiedz(imieRobota ? "Jestem! Słucham uważnie." : "Obudziłem się! Słucham.");
                     }
                 } else {
-                    if (tekst.includes("idź spać") || tekst.includes("wyłącz się") || tekst.includes("dobranoc")) {
-                        trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi';
-                        wyslijDoESP(90, 90, 0, 0);
-                        powiedz("Dobranoc, idę spać!"); return;
+                    if (tekst.includes("spać") || tekst.includes("śpij") || tekst.includes("wyłącz się") || tekst.includes("dobranoc") || tekst.includes("drzemk")) {
+                        uspijRobota("Dobranoc, idę spać!");
+                        return;
                     }
 
                     if (tekst.length < 2) return;
@@ -444,11 +476,12 @@ ZASADY:
 1. Odpowiadaj WYŁĄCZNIE po polsku, naturalnym prostym tekstem do czytania na głos (bez gwiazdek, list wypunktowanych i emotikon).
 2. Odpowiadaj krótko i naturalnie (2-3 zdania), chyba że rozmówca prosi o dłuższą opowieść lub bajkę. Nie witaj się ponownie w środku rozmowy.
 3. Jeśli dostałeś obraz z kamery i rozmówca pyta co widzisz, krótko opisz zdjęcie.
-4. UCZENIE SIĘ (BARDZO WAŻNE): Wyłapuj nowe informacje od rozmówcy i umieszczaj niewidoczne tagi na SAMYM POCZĄTKU odpowiedzi:
+4. UCZENIE SIĘ I STEROWANIE (niewidoczne tagi na SAMYM POCZĄTKU odpowiedzi):
    - Gdy rozmówca nadaje lub zmienia Twoje imię: [IMIE: NoweImie]
    - Gdy rozmówca określa kim masz być, jaki masz mieć charakter lub dla kogo jesteś: [ROLA: krotki opis roli]
-   - Gdy rozmówca uczy Cię jakiegokolwiek nowego faktu (np. jak ma na imię, co lubi, kim są domownicy, gdzie mieszkacie, czego ma Cię nauczyć, jak masz reagować): [ZAPAMIETAJ: krotki konkretny fakt] (możesz dać kilka takich tagów, jeśli podał kilka faktów).
+   - Gdy rozmówca uczy Cię jakiegokolwiek nowego faktu (imiona domowników, upodobania, zasady, wiedza): [ZAPAMIETAJ: krotki konkretny fakt]
    - Gdy rozmówca każe Ci zapomnieć wszystko / zresetować pamięć: [ZAPOMNIJ]
+   - Gdy rozmówca żegna się albo każe Ci iść spać / zamknąć oczy / odpocząć: [SPAC]
 5. WYMÓG ABSOLUTNY: Na samym końcu odpowiedzi ZAWSZE dopisz jedną emocję w nawiasie kwadratowym: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY].
 
 Rozmówca powiedział: ${pytanie}`;
@@ -524,6 +557,8 @@ Rozmówca powiedział: ${pytanie}`;
                                 komunikatNauki = `Nauczyłem się: ${dopasowaniaFaktow[dopasowaniaFaktow.length - 1][1].trim()}`;
                             }
 
+                            let idzieSpac = /\[SPAC\]/i.test(odp);
+
                             if (komunikatNauki) {
                                 setTimeout(() => {
                                     stanSystemuTxt.style.color = "#00ffcc";
@@ -542,13 +577,17 @@ Rozmówca powiedział: ${pytanie}`;
                             }
 
                             let czystyTekst = odp.replace(/\[.*?\]/g, '').replace(/[*#_`]/g, '').trim();
-                            if (czystyTekst.length < 2) czystyTekst = "Zapamiętałem!";
+                            if (czystyTekst.length < 2) czystyTekst = idzieSpac ? "Dobranoc!" : "Zapamiętałem!";
 
                             historiaRozmowy.push({ kto: "Rozmówca", tekst: pytanie });
                             historiaRozmowy.push({ kto: imieRobota || "Robot", tekst: czystyTekst });
                             if (historiaRozmowy.length > 10) historiaRozmowy = historiaRozmowy.slice(-10);
 
-                            powiedz(czystyTekst, klasaUsty);
+                            if (idzieSpac) {
+                                uspijRobota(czystyTekst);
+                            } else {
+                                powiedz(czystyTekst, klasaUsty);
+                            }
                             udaloSie = true; break;
                         }
                     } else {
@@ -616,8 +655,13 @@ Rozmówca powiedział: ${pytanie}`;
             clearTimeout(bezpiecznikTTS); clearInterval(interwalKlapania);
             usta.style.transform = 'scale(1)';
             
-            if (trybAktywny) { stanEmocji = 1; usta.className = 'usta emocja-neutralny'; }
-            else { stanEmocji = 0; usta.className = 'usta spi'; }
+            if (trybAktywny) {
+                stanEmocji = 1; usta.className = 'usta emocja-neutralny';
+                wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), 1, 1, true);
+            } else {
+                usta.className = 'usta spi';
+                wymusZamkniecieOczu();
+            }
             
             czyMowi = false; czasOstatniejAktywnosci = Date.now();
             wznowNasluch();
@@ -625,9 +669,14 @@ Rozmówca powiedział: ${pytanie}`;
 
         function wznowNasluch() {
             przetwarzanieWToku = false;
-            if (trybAktywny && !stanSystemuTxt.innerText.startsWith("BŁĄD")) {
-                stanSystemuTxt.style.color = "#ff3366";
-                stanSystemuTxt.innerText = `${imieRobota || "Robot"} pilnie słucha...`;
+            if (!stanSystemuTxt.innerText.startsWith("BŁĄD")) {
+                if (trybAktywny) {
+                    stanSystemuTxt.style.color = "#ff3366";
+                    stanSystemuTxt.innerText = `${imieRobota || "Robot"} pilnie słucha...`;
+                } else {
+                    stanSystemuTxt.style.color = "#888";
+                    stanSystemuTxt.innerText = `Śpię. Powiedz "${imieRobota || "robot"}", by wybudzić.`;
+                }
             }
             setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 800);
         }
