@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gienek 26.1 (Optymalizacja CPU)</title>
+    <title>Czysty Robot 27.2 (Groq + Nauka od zera)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -11,7 +11,7 @@
 
     <style>
         body { background: #050505; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Comic Sans MS', sans-serif; overflow: hidden; }
-        #startBtn { padding: 20px 40px; font-size: 24px; font-weight: bold; background: #ff3b30; color: white; border: none; border-radius: 12px; cursor: pointer; z-index: 100;}
+        #startBtn { padding: 20px 40px; font-size: 24px; font-weight: bold; background: #ff3b30; color: white; border: none; border-radius: 12px; cursor: pointer; z-index: 100; }
         video { position: absolute; opacity: 0.01; width: 10px; height: 10px; z-index: -100; pointer-events: none; }
         
         .usta { background-color: #ff3366; margin-bottom: 30px; transition: border-radius 0.4s ease-out, width 0.4s ease-out, height 0.4s ease-out, background-color 0.4s, transform 0.15s ease-in-out; }
@@ -21,31 +21,43 @@
         .emocja-smutek { width: 60%; max-width: 200px; height: 45px; border-radius: 100px 100px 20px 20px; background-color: #8833ff; box-shadow: 0 0 30px rgba(136,51,255,0.6); }
         .spi { width: 30%; max-width: 150px; height: 8px; border-radius: 10px; background: #444; box-shadow: none; transform: scale(1) !important; }
         
-        #debug { font-size: 15px; color: #888; text-align: center; position: absolute; bottom: 25px; width: 90%; word-break: break-word; }
-        .mqtt-status { font-weight: bold; color: #555; display: block; margin-top: 5px; font-size: 12px;}
+        #debug { font-size: 14px; color: #888; text-align: center; position: absolute; bottom: 20px; width: 92%; word-break: break-word; }
+        .mqtt-status { font-weight: bold; color: #555; display: block; margin-top: 5px; font-size: 12px; }
         
         #ustawieniaBtn { position: absolute; top: 20px; right: 20px; font-size: 35px; background: none; border: none; cursor: pointer; display: none; z-index: 50; }
-        #panelTrymera { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20,20,20,0.95); padding: 25px; border-radius: 15px; text-align: center; border: 2px solid #00ffcc; z-index: 200; width: 80%; max-width: 350px;}
+        #panelTrymera, #apiModal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20,20,20,0.97); padding: 25px; border-radius: 15px; text-align: center; border: 2px solid #00ffcc; z-index: 200; width: 82%; max-width: 350px; }
+        #apiModal { border-color: #ff3366; z-index: 300; }
+        #apiInput { width: 92%; padding: 12px; margin: 12px 0; border-radius: 8px; border: 1px solid #444; background: #111; color: #fff; font-size: 15px; text-align: center; }
         .strzalki { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; justify-content: center; }
-        .btnKierunek { padding: 15px; font-size: 24px; background: #333; color: white; border: none; border-radius: 10px; cursor: pointer;}
-        #zapiszBtn { padding: 15px 20px; font-size: 16px; background: #00ffcc; color: black; border: none; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer;}
+        .btnKierunek { padding: 15px; font-size: 24px; background: #333; color: white; border: none; border-radius: 10px; cursor: pointer; }
+        #zapiszBtn, .btnAkcja { padding: 13px 18px; font-size: 15px; background: #00ffcc; color: black; border: none; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 8px; }
+        .btnKlucz { background: #ff3b30; color: white; }
+        .btnReset { background: #ff9500; color: black; }
     </style>
 </head>
 <body>
 
     <button id="ustawieniaBtn" onclick="pokazTrymer()">⚙️</button>
-    <button id="startBtn" onclick="uruchomiOS()">OBUDŹ GIENKA</button>
+    <button id="startBtn" onclick="startPrzycisk()">OBUDŹ ROBOTA</button>
     
     <div class="usta spi" id="ustaGienka"></div>
     <video id="webcam" autoplay playsinline muted></video>
     
     <div id="debug">
-        <span id="stanSystemu" style="color: #ff3366;">Gienek słodko śpi...</span>
+        <span id="stanSystemu" style="color: #ff3366;">Robot śpi...</span>
         <span id="mqttStatus" class="mqtt-status">Sieć Neuralna: OFF</span>
     </div>
 
+    <div id="apiModal">
+        <h3 style="margin-top:0; color:#ff3366;">Klucz API Groq</h3>
+        <p style="font-size:13px; color:#ccc; margin:0;">Wklej klucz z console.groq.com (gsk_...)</p>
+        <input type="text" id="apiInput" placeholder="gsk_..." autocomplete="off">
+        <button class="btnAkcja btnKlucz" onclick="zapiszKluczAPI()">ZAPISZ I URUCHOM</button>
+        <p id="apiError" style="color:#ff3b30; font-size:13px; display:none; margin-top:8px;">Klucz Groq musi zaczynać się od gsk_.</p>
+    </div>
+
     <div id="panelTrymera">
-        <h3 style="margin-top:0; color:#00ffcc;">Kalibracja Środka</h3>
+        <h3 style="margin-top:0; color:#00ffcc;">Kalibracja i Pamięć</h3>
         <div class="strzalki">
             <div></div><button class="btnKierunek" onclick="trymuj(0, -5)">⬆️</button><div></div>
             <button class="btnKierunek" onclick="trymuj(5, 0)">⬅️</button>
@@ -53,15 +65,23 @@
             <button class="btnKierunek" onclick="trymuj(-5, 0)">➡️</button>
             <div></div><button class="btnKierunek" onclick="trymuj(0, 5)">⬇️</button><div></div>
         </div>
-        <p>X: <span id="txtOffX" style="color:white; font-weight:bold;">0</span> | Y: <span id="txtOffY" style="color:white; font-weight:bold;">0</span></p>
+        <p style="margin: 8px 0;">X: <span id="txtOffX" style="color:white; font-weight:bold;">0</span> | Y: <span id="txtOffY" style="color:white; font-weight:bold;">0</span></p>
+        <p id="infoPamiec" style="font-size:12px; color:#aaa; margin: 6px 0;"></p>
         <button id="zapiszBtn" onclick="zapiszTrymer()">ZAPISZ</button>
+        <button class="btnAkcja btnReset" onclick="resetujRobota()">RESETUJ PAMIĘĆ (CZYSTY START)</button>
+        <button class="btnAkcja btnKlucz" onclick="zmienKlucz()">ZMIEŃ KLUCZ GROQ</button>
     </div>
 
     <script>
-        // ==========================================
-        const SUROWY_KLUCZ ="AQ.Ab8RN6K2f8PX_-mJHvQWWqORv5m00bgEtBP8vEhprjpfgSkE8g"
-        const GEMINI_KEY = SUROWY_KLUCZ.trim();
-        // ==========================================
+        let GROQ_KEY = (localStorage.getItem('gienekGroqKey') || "").replace(/\s+/g, '');
+        let aktywneModeleGroq = [];
+
+        // --- PAMIĘĆ CZYSTEGO ROBOTA ---
+        let imieRobota = localStorage.getItem('czystyRobotImie') || "";
+        let rolaRobota = localStorage.getItem('czystyRobotRola') || "";
+        let pamiecFakty = [];
+        try { pamiecFakty = JSON.parse(localStorage.getItem('czystyRobotPamiec') || "[]"); } catch (e) { pamiecFakty = []; }
+        let historiaRozmowy = [];
 
         const usta = document.getElementById('ustaGienka');
         const stanSystemuTxt = document.getElementById('stanSystemu');
@@ -70,13 +90,13 @@
 
         let mostRadiowy = null; let gotowyDoWysylania = false; let ostWysylka = 0;
         let rozpoznawanieMowy = null; let trybAktywny = false; let czyMowi = false;
-        let aktualnaWypowiedz = null; 
+        let aktualnaWypowiedz = null;
+        let uruchomiony = false;
         
-        let przetwarzanieWToku = false; 
-        let bezpiecznikTTS = null; 
-        let czasOstatniejAktywnosci = Date.now(); 
-        
-        let stanEmocji = 0; 
+        let przetwarzanieWToku = false;
+        let bezpiecznikTTS = null;
+        let czasOstatniejAktywnosci = Date.now();
+        let stanEmocji = 0;
         
         let offsetX = parseInt(localStorage.getItem('gienekOffsetX')) || 0;
         let offsetY = parseInt(localStorage.getItem('gienekOffsetY')) || 0;
@@ -87,28 +107,79 @@
         let czasZmianyBladzenia = 0;
         let czasOstatniejTwarzy = Date.now();
         let mruga = false;
-        
-        // --- LIMITER OBROTÓW DLA KAMERY ---
-        let czasOstatniejKlatki = 0; 
-
-        const dostepneModele = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+        let czasOstatniejKlatki = 0;
 
         function cyklMrugania() {
             if (trybAktywny && !czyMowi) { mruga = true; setTimeout(() => { mruga = false; }, 150); }
-            setTimeout(cyklMrugania, Math.random() * 3000 + 1500); 
+            setTimeout(cyklMrugania, Math.random() * 3000 + 1500);
         }
         setTimeout(cyklMrugania, 2000);
 
-        function pokazTrymer() { document.getElementById('panelTrymera').style.display = 'block'; document.getElementById('txtOffX').innerText = offsetX; document.getElementById('txtOffY').innerText = offsetY; }
-        function trymuj(dx, dy) { if(dx === 0 && dy === 0) { offsetX = 0; offsetY = 0; } else { offsetX += dx; offsetY += dy; } document.getElementById('txtOffX').innerText = offsetX; document.getElementById('txtOffY').innerText = offsetY; }
-        function zapiszTrymer() { localStorage.setItem('gienekOffsetX', offsetX); localStorage.setItem('gienekOffsetY', offsetY); document.getElementById('panelTrymera').style.display = 'none'; }
+        function pokazTrymer() {
+            document.getElementById('panelTrymera').style.display = 'block';
+            document.getElementById('txtOffX').innerText = offsetX;
+            document.getElementById('txtOffY').innerText = offsetY;
+            document.getElementById('infoPamiec').innerText =
+                `Imię: ${imieRobota || "(brak)"} | Zapisanych faktów: ${pamiecFakty.length}`;
+        }
+        function trymuj(dx, dy) {
+            if (dx === 0 && dy === 0) { offsetX = 0; offsetY = 0; } else { offsetX += dx; offsetY += dy; }
+            document.getElementById('txtOffX').innerText = offsetX;
+            document.getElementById('txtOffY').innerText = offsetY;
+        }
+        function zapiszTrymer() {
+            localStorage.setItem('gienekOffsetX', offsetX);
+            localStorage.setItem('gienekOffsetY', offsetY);
+            document.getElementById('panelTrymera').style.display = 'none';
+        }
+        function zmienKlucz() {
+            document.getElementById('panelTrymera').style.display = 'none';
+            document.getElementById('apiInput').value = GROQ_KEY;
+            document.getElementById('apiModal').style.display = 'block';
+        }
+        function resetujRobota() {
+            if (confirm("Wyczyścić całe imię, charakter i wszystko czego robot się nauczył?")) {
+                localStorage.removeItem('czystyRobotImie');
+                localStorage.removeItem('czystyRobotRola');
+                localStorage.removeItem('czystyRobotPamiec');
+                location.reload();
+            }
+        }
+
+        function startPrzycisk() {
+            if (!GROQ_KEY || !GROQ_KEY.startsWith('gsk_') || GROQ_KEY.length < 20) {
+                document.getElementById('apiModal').style.display = 'block';
+                return;
+            }
+            uruchomiOS();
+        }
+
+        function zapiszKluczAPI() {
+            const k = document.getElementById('apiInput').value.replace(/\s+/g, '');
+            if (!k.startsWith('gsk_') || k.length < 20) {
+                document.getElementById('apiError').style.display = 'block';
+                return;
+            }
+            GROQ_KEY = k;
+            aktywneModeleGroq = [];
+            localStorage.setItem('gienekGroqKey', k);
+            document.getElementById('apiError').style.display = 'none';
+            document.getElementById('apiModal').style.display = 'none';
+            if (!uruchomiony) uruchomiOS();
+            else {
+                stanSystemuTxt.style.color = "#ff3366";
+                stanSystemuTxt.innerText = "Nowy klucz Groq zapisany.";
+            }
+        }
 
         function uruchomiOS() {
-            window.speechSynthesis.speak(new SpeechSynthesisUtterance("")); 
+            uruchomiony = true;
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('ustawieniaBtn').style.display = 'block';
+            stanSystemuTxt.style.color = "#ff3366";
             stanSystemuTxt.innerText = "Start systemów...";
-            uruchomSluch(); 
+            uruchomSluch();
             setTimeout(uruchomReszte, 100);
         }
 
@@ -116,19 +187,29 @@
             try {
                 const strumien = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } });
                 videoElement.srcObject = strumien;
-            } catch(e) { }
+            } catch (e) { }
 
-            if (GEMINI_KEY === "TUTAJ_WKLEJ_SWÓJ_KLUCZ" || GEMINI_KEY === "") {
-                stanSystemuTxt.innerText = "BŁĄD: ZAPOMNIAŁEŚ KLUCZA API!";
-                stanSystemuTxt.style.color = "#ff3b30";
-                return;
-            } 
-
-            const unikalnyID = 'gienek_ios_' + Math.random().toString(16).substring(2, 10);
+            const unikalnyID = 'robot_czysty_' + Math.random().toString(16).substring(2, 10);
             mostRadiowy = mqtt.connect('wss://broker.emqx.io:8084/mqtt', { clientId: unikalnyID, keepalive: 60, clean: true });
-            mostRadiowy.on('connect', () => { gotowyDoWysylania = true; mqttStatus.innerText = "Sieć Neuralna: ONLINE"; mqttStatus.style.color = "#ff3366"; });
+            mostRadiowy.on('connect', () => {
+                gotowyDoWysylania = true;
+                mqttStatus.innerText = "Sieć Neuralna: ONLINE";
+                mqttStatus.style.color = "#ff3366";
+            });
             
             setTimeout(uruchomWzrok, 500);
+
+            // Pierwsze uruchomienie czystego robota — od razu się budzi i prosi o naukę
+            setTimeout(() => {
+                if (!imieRobota) {
+                    trybAktywny = true;
+                    stanEmocji = 3;
+                    czasOstatniejAktywnosci = Date.now();
+                    powiedz("Cześć! Jestem zupełnie czystym robotem i nic jeszcze o sobie nie wiem. Jak mam się nazywać i kim mam być?", "emocja-zaskoczenie");
+                } else {
+                    stanSystemuTxt.innerText = `Powiedz "${imieRobota}" lub "robot", by wybudzić.`;
+                }
+            }, 1400);
         }
 
         function uruchomWzrok() {
@@ -143,7 +224,7 @@
 
                 if (results.detections && results.detections.length > 0) {
                     try {
-                        const box = results.detections[0].boundingBox; 
+                        const box = results.detections[0].boundingBox;
                         let cx = (box.xCenter !== undefined) ? box.xCenter : ((box.xMin || box.xmin || 0) + (box.width / 2));
                         let cy = (box.yCenter !== undefined) ? box.yCenter : ((box.yMin || box.ymin || 0) + (box.height / 2));
                         
@@ -153,12 +234,12 @@
                         ostatniX = docelowyX; ostatniY = docelowyY;
                         czasOstatniejTwarzy = teraz;
                         widziKogos = true;
-                        czasOstatniejAktywnosci = teraz; 
-                    } catch(e) {}
+                        czasOstatniejAktywnosci = teraz;
+                    } catch (e) {}
                 }
 
                 if (!widziKogos) {
-                    if (teraz - czasOstatniejTwarzy < 2000) { docelowyX = ostatniX; docelowyY = ostatniY; } 
+                    if (teraz - czasOstatniejTwarzy < 2000) { docelowyX = ostatniX; docelowyY = ostatniY; }
                 }
 
                 if (czyMowi) {
@@ -171,127 +252,285 @@
                 }
 
                 if (trybAktywny && !czyMowi && !przetwarzanieWToku) {
-                    if (teraz - czasOstatniejAktywnosci > 35000) { 
+                    if (teraz - czasOstatniejAktywnosci > 35000) {
                         trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi';
                         stanSystemuTxt.innerText = "Brak aktywności. Idę spać...";
-                        powiedz("Chyba sobie poszliście! Zrobię sobie drzemkę, pa pa!");
+                        powiedz("Zrobię sobie krótką drzemkę. Zawołaj mnie, gdy będziesz mnie potrzebować!");
                     }
                 }
 
                 glatkiX = glatkiX + (docelowyX - glatkiX) * 0.15;
                 glatkiY = glatkiY + (docelowyY - glatkiY) * 0.15;
 
-                let w = 1; 
-                if (!trybAktywny) { w = 0; stanEmocji = 0; } 
-                else if (mruga) { w = 0; } 
+                let w = 1;
+                if (!trybAktywny) { w = 0; stanEmocji = 0; }
+                else if (mruga) { w = 0; }
 
                 wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), w, stanEmocji);
             });
 
             const camera = new Camera(videoElement, {
-                onFrame: async () => { 
+                onFrame: async () => {
                     let teraz = Date.now();
-                    // ZAWÓR DŁAWIĄCY (THROTTLE): Analiza twarzy MAX 6-7 razy na sekundę (co 150ms)
                     if (teraz - czasOstatniejKlatki > 150) {
                         czasOstatniejKlatki = teraz;
-                        try { await faceDetection.send({image: videoElement}); } catch(e) {}
+                        try { await faceDetection.send({ image: videoElement }); } catch (e) {}
                     }
-                }, 
+                },
                 width: 320, height: 240
             });
             camera.start();
         }
 
         function wyslijDoESP(x, y, widzi, emocja) {
-            if (!gotowyDoWysylania || Date.now() - ostWysylka < 50) return; 
+            if (!gotowyDoWysylania || Date.now() - ostWysylka < 50) return;
             ostWysylka = Date.now();
             mostRadiowy.publish("warsztat_gienek_12345/oczy", `${x},${y},${widzi},${emocja}`);
         }
 
         function zrobZdjecieDlaAI() {
             try {
+                if (!videoElement.videoWidth) return null;
                 const canvas = document.createElement('canvas');
                 canvas.width = 320; canvas.height = 240;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
                 return canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-            } catch(e) { return null; }
+            } catch (e) { return null; }
+        }
+
+        function czySlowoWybudzenia(tekst) {
+            if (tekst.includes("robot") || tekst.includes("pobudka") || tekst.includes("obudź się")) return true;
+            if (imieRobota) {
+                const im = imieRobota.toLowerCase();
+                if (tekst.includes(im)) return true;
+                // Obsługa odmiany polskich imion (np. Gienek -> Gienku, Zosia -> Zosiu)
+                if (im.length >= 4 && tekst.includes(im.slice(0, 4))) return true;
+            }
+            return false;
         }
 
         function uruchomSluch() {
             window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!window.SpeechRecognition) { stanSystemuTxt.innerText = "Brak obsługi rozpoznawania mowy w Safari."; return; }
+            if (!window.SpeechRecognition) { stanSystemuTxt.innerText = "Brak obsługi rozpoznawania mowy w przeglądarce."; return; }
 
             rozpoznawanieMowy = new SpeechRecognition();
             rozpoznawanieMowy.lang = 'pl-PL'; rozpoznawanieMowy.continuous = true; rozpoznawanieMowy.interimResults = false;
 
             rozpoznawanieMowy.onresult = async (event) => {
                 let tekst = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-                czasOstatniejAktywnosci = Date.now(); 
+                czasOstatniejAktywnosci = Date.now();
                 
-                if (przetwarzanieWToku || czyMowi) return; 
+                if (przetwarzanieWToku || czyMowi) return;
 
                 if (!trybAktywny) {
-                    if (tekst.includes("gienek") || tekst.includes("genek")) {
-                        trybAktywny = true; stanEmocji = 1; usta.className = 'usta emocja-neutralny'; 
-                        powiedz("Hej! Słucham was uważnie!");
+                    if (czySlowoWybudzenia(tekst)) {
+                        trybAktywny = true; stanEmocji = 1; usta.className = 'usta emocja-neutralny';
+                        powiedz(imieRobota ? `Jestem! Słucham uważnie.` : `Obudziłem się! Słucham.`);
                     }
                 } else {
                     if (tekst.includes("idź spać") || tekst.includes("wyłącz się") || tekst.includes("dobranoc")) {
-                        trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi'; 
-                        wyslijDoESP(90, 90, 0, 0); 
-                        powiedz("Dobranoc Klementynko, kolorowych snów!"); return;
+                        trybAktywny = false; stanEmocji = 0; usta.className = 'usta spi';
+                        wyslijDoESP(90, 90, 0, 0);
+                        powiedz("Dobranoc, idę spać!"); return;
                     }
 
-                    if (tekst.length < 3) return; 
+                    if (tekst.length < 2) return;
                     
                     przetwarzanieWToku = true;
-                    try { rozpoznawanieMowy.stop(); } catch(e){} 
+                    try { rozpoznawanieMowy.stop(); } catch (e) {}
                     
-                    await zapytajGemini(tekst);
+                    await zapytajGroq(tekst);
                 }
             };
             
             rozpoznawanieMowy.onerror = (event) => {
-                let errMSG = event.error;
-                stanSystemuTxt.innerText = "Błąd słuchu: " + errMSG;
-                if(event.error === 'no-speech' || event.error === 'network') {
-                    if(!czyMowi && !przetwarzanieWToku) setTimeout(() => { try { rozpoznawanieMowy.start(); } catch(e){} }, 500);
+                stanSystemuTxt.innerText = "Błąd słuchu: " + event.error;
+                if (event.error === 'no-speech' || event.error === 'network') {
+                    if (!czyMowi && !przetwarzanieWToku) setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 500);
                 }
             };
 
-            rozpoznawanieMowy.onend = () => { 
-                if (!czyMowi && !przetwarzanieWToku) setTimeout(() => { try { rozpoznawanieMowy.start(); } catch(e){} }, 200); 
+            rozpoznawanieMowy.onend = () => {
+                if (!czyMowi && !przetwarzanieWToku) setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 200);
             };
             
-            try { rozpoznawanieMowy.start(); stanSystemuTxt.innerText = "Powiedz 'Gienek' by wybudzić."; } catch(e) {}
+            try { rozpoznawanieMowy.start(); } catch (e) {}
         }
 
-        async function zapytajGemini(pytanie) {
-            stanSystemuTxt.innerText = "Zastanawiam się (i patrzę)...";
-            
-            const PROMPT_DLA_DZIECKA = `Jesteś Gienek, wesoły, niesamowicie kreatywny robot przyjaciel dla 3,5-letniej Klementynki. WIDZISZ obraz z kamery. 
-ZASADY: 1. Na pytania odpowiadaj naturalnie i krótko (2-3 zdania). 2. Jeśli poprosi o BAJKĘ, opowiedz długą, piękną historię! 3. WYMÓG ABSOLUTNY: Na samym końcu swojej wypowiedzi MUSISZ dopisać w nawiasach kwadratowych jedną emocję, np: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY]. Pytanie Klementynki: ${pytanie}`;
+        async function pobierzAktywneModeleGroq() {
+            const response = await fetch("https://api.groq.com/openai/v1/models", {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${GROQ_KEY}` }
+            });
+            if (!response.ok) {
+                let opis = "";
+                try { const err = await response.json(); opis = err?.error?.message || ""; } catch (e) {}
+                throw new Error(`BŁĄD ${response.status} (pobieranie modeli): ${opis}`);
+            }
+            const data = await response.json();
+            const wszystkie = (data.data || []).filter(m => m.active !== false).map(m => m.id);
+            const wykluczone = /whisper|tts|playai|orpheus|guard|safeguard|embed|moderation|audio|stt|allam/i;
+            let czatowe = wszystkie.filter(id => !wykluczone.test(id));
+            if (czatowe.length === 0) czatowe = wszystkie;
 
-            let czesciWiadomosci = [{ text: PROMPT_DLA_DZIECKA }];
-            let zdjecieB64 = zrobZdjecieDlaAI();
-            
-            if (zdjecieB64) czesciWiadomosci.push({ inlineData: { mimeType: "image/jpeg", data: zdjecieB64 } });
+            czatowe.sort((a, b) => {
+                const waga = (id) => {
+                    if (/llama-4|scout|maverick|vision|vl|multimodal/i.test(id)) return 1;
+                    if (/llama|qwen|gpt-oss|kimi|gemma/i.test(id)) return 2;
+                    return 3;
+                };
+                return waga(a) - waga(b);
+            });
+            return czatowe;
+        }
 
-            let udaloSie = false;
+        function zapiszFakt(fakt) {
+            const f = fakt.trim();
+            if (!f) return;
+            if (!pamiecFakty.some(x => x.toLowerCase() === f.toLowerCase())) {
+                pamiecFakty.push(f);
+                if (pamiecFakty.length > 60) pamiecFakty.shift();
+                localStorage.setItem('czystyRobotPamiec', JSON.stringify(pamiecFakty));
+            }
+        }
 
-            for (let model of dostepneModele) {
+        async function zapytajGroq(pytanie) {
+            stanSystemuTxt.style.color = "#ff3366";
+            stanSystemuTxt.innerText = "Łączę z Groq...";
+
+            if (aktywneModeleGroq.length === 0) {
                 try {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
-                    const response = await fetch(url, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: czesciWiadomosci }] })
-                    });
+                    aktywneModeleGroq = await pobierzAktywneModeleGroq();
+                } catch (e) {
+                    stanSystemuTxt.style.color = "#ff3b30";
+                    stanSystemuTxt.innerText = e.message;
+                    powiedz("Nie mogę pobrać listy modeli z Groq. Sprawdź klucz i komunikat na ekranie.", "emocja-smutek");
+                    return;
+                }
+            }
+
+            if (aktywneModeleGroq.length === 0) {
+                stanSystemuTxt.style.color = "#ff3b30";
+                stanSystemuTxt.innerText = "BŁĄD: Brak włączonych modeli na koncie Groq.";
+                powiedz("Na tym koncie Groq nie ma aktywnych modeli.", "emocja-smutek");
+                return;
+            }
+
+            const statusTozsamosci = imieRobota
+                ? `Twoje nauczone imię: ${imieRobota}.`
+                : `NIE MASZ JESZCZE IMIENIA. Jesteś czystym, nowo uruchomionym robotem, który dopiero poznaje świat.`;
+
+            const statusRoli = rolaRobota
+                ? `Twoja nauczona rola i charakter: ${rolaRobota}.`
+                : `Nie masz jeszcze ustalonej roli ani charakteru — dopasuj się do tego, czego uczy Cię rozmówca.`;
+
+            const listaPamieci = pamiecFakty.length > 0
+                ? pamiecFakty.map((f, i) => `${i + 1}. ${f}`).join("\n")
+                : "Brak zapisanych faktów — ucz się wszystkiego, co powie rozmówca.";
+
+            const historiaTekst = historiaRozmowy.length > 0
+                ? "\nOSTATNIA ROZMOWA:\n" + historiaRozmowy.map(h => `${h.kto}: ${h.tekst}`).join("\n")
+                : "";
+
+            const PROMPT = `Jesteś fizycznym, ciekawym świata robotem z ruchomymi oczami i kamerą, który uczy się wszystkiego od swojego rozmówcy.
+${statusTozsamosci}
+${statusRoli}
+
+TWOJA TRWAŁA PAMIĘĆ (wszystko, czego do tej pory się nauczyłeś):
+${listaPamieci}${historiaTekst}
+
+ZASADY:
+1. Odpowiadaj WYŁĄCZNIE po polsku, naturalnym prostym tekstem do czytania na głos (bez gwiazdek, list wypunktowanych i emotikon).
+2. Odpowiadaj krótko i naturalnie (2-3 zdania), chyba że rozmówca prosi o dłuższą opowieść lub bajkę. Nie witaj się ponownie w środku rozmowy.
+3. Jeśli dostałeś obraz z kamery i rozmówca pyta co widzisz, krótko opisz zdjęcie.
+4. UCZENIE SIĘ (BARDZO WAŻNE): Wyłapuj nowe informacje od rozmówcy i umieszczaj niewidoczne tagi na SAMYM POCZĄTKU odpowiedzi:
+   - Gdy rozmówca nadaje lub zmienia Twoje imię: [IMIE: NoweImie]
+   - Gdy rozmówca określa kim masz być, jaki masz mieć charakter lub dla kogo jesteś: [ROLA: krotki opis roli]
+   - Gdy rozmówca uczy Cię jakiegokolwiek nowego faktu (np. jak ma na imię, co lubi, kim są domownicy, gdzie mieszkacie, czego ma Cię nauczyć, jak masz reagować): [ZAPAMIETAJ: krotki konkretny fakt] (możesz dać kilka takich tagów, jeśli podał kilka faktów).
+   - Gdy rozmówca każe Ci zapomnieć wszystko / zresetować pamięć: [ZAPOMNIJ]
+5. WYMÓG ABSOLUTNY: Na samym końcu odpowiedzi ZAWSZE dopisz jedną emocję w nawiasie kwadratowym: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY].
+
+Rozmówca powiedział: ${pytanie}`;
+
+            let zdjecieB64 = zrobZdjecieDlaAI();
+            let udaloSie = false;
+            let ostatniBlad = "Brak odpowiedzi z serwera Groq";
+
+            for (let modelId of aktywneModeleGroq) {
+                stanSystemuTxt.innerText = `Myślę (${modelId})...`;
+                try {
+                    const czyObraz = Boolean(zdjecieB64 && /llama-4|scout|maverick|vision|vl|multimodal/i.test(modelId));
+                    const wyslij = async (zObrazem) => {
+                        const content = zObrazem
+                            ? [
+                                { type: "text", text: PROMPT },
+                                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${zdjecieB64}` } }
+                              ]
+                            : PROMPT;
+
+                        return await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${GROQ_KEY}`
+                            },
+                            body: JSON.stringify({
+                                model: modelId,
+                                messages: [{ role: "user", content: content }],
+                                temperature: 0.7,
+                                max_tokens: 450
+                            })
+                        });
+                    };
+
+                    let response = await wyslij(czyObraz);
+                    if (!response.ok && response.status === 400 && czyObraz) {
+                        response = await wyslij(false);
+                    }
 
                     if (response.ok) {
                         const data = await response.json();
-                        let odp = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (odp) { 
+                        let odp = data.choices?.[0]?.message?.content;
+                        if (odp) {
+                            odp = odp.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                            let komunikatNauki = "";
+
+                            if (odp.includes('[ZAPOMNIJ]')) {
+                                imieRobota = ""; rolaRobota = ""; pamiecFakty = []; historiaRozmowy = [];
+                                localStorage.removeItem('czystyRobotImie');
+                                localStorage.removeItem('czystyRobotRola');
+                                localStorage.removeItem('czystyRobotPamiec');
+                                komunikatNauki = "Wyczyściłem pamięć do zera!";
+                            }
+
+                            let wykrImie = odp.match(/\[IMIE:\s*(.*?)\]/i);
+                            if (wykrImie && wykrImie[1].trim()) {
+                                imieRobota = wykrImie[1].trim();
+                                localStorage.setItem('czystyRobotImie', imieRobota);
+                                komunikatNauki = `Nauczyłem się imienia: ${imieRobota}`;
+                            }
+
+                            let wykrRola = odp.match(/\[ROLA:\s*(.*?)\]/i);
+                            if (wykrRola && wykrRola[1].trim()) {
+                                rolaRobota = wykrRola[1].trim();
+                                localStorage.setItem('czystyRobotRola', rolaRobota);
+                                komunikatNauki = komunikatNauki || `Zapisałem nową rolę!`;
+                            }
+
+                            const dopasowaniaFaktow = [...odp.matchAll(/\[ZAPAMIETAJ:\s*(.*?)\]/gi)];
+                            if (dopasowaniaFaktow.length > 0) {
+                                dopasowaniaFaktow.forEach(m => zapiszFakt(m[1]));
+                                komunikatNauki = `Nauczyłem się: ${dopasowaniaFaktow[dopasowaniaFaktow.length - 1][1].trim()}`;
+                            }
+
+                            if (komunikatNauki) {
+                                setTimeout(() => {
+                                    stanSystemuTxt.style.color = "#00ffcc";
+                                    stanSystemuTxt.innerText = komunikatNauki;
+                                }, 400);
+                            }
+
                             let wykrEmocja = odp.match(/\[(RADOSC|ZASKOCZENIE|SMUTEK|NEUTRALNY)\]/i);
                             let klasaUsty = 'emocja-neutralny'; stanEmocji = 1;
 
@@ -301,27 +540,57 @@ ZASADY: 1. Na pytania odpowiadaj naturalnie i krótko (2-3 zdania). 2. Jeśli po
                                 else if (em === 'ZASKOCZENIE') { klasaUsty = 'emocja-zaskoczenie'; stanEmocji = 3; }
                                 else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
                             }
-                            
-                            let czystyTekst = odp.replace(/\[.*?\]/g, '').trim();
-                            powiedz(czystyTekst, klasaUsty); 
-                            udaloSie = true; break; 
+
+                            let czystyTekst = odp.replace(/\[.*?\]/g, '').replace(/[*#_`]/g, '').trim();
+                            if (czystyTekst.length < 2) czystyTekst = "Zapamiętałem!";
+
+                            historiaRozmowy.push({ kto: "Rozmówca", tekst: pytanie });
+                            historiaRozmowy.push({ kto: imieRobota || "Robot", tekst: czystyTekst });
+                            if (historiaRozmowy.length > 10) historiaRozmowy = historiaRozmowy.slice(-10);
+
+                            powiedz(czystyTekst, klasaUsty);
+                            udaloSie = true; break;
                         }
                     } else {
-                        if (response.status === 503 || response.status === 429 || response.status === 404) continue; 
-                        else { wznowNasluch(); return; }
+                        let opis = "";
+                        try {
+                            const errData = await response.json();
+                            opis = errData?.error?.message || "";
+                        } catch (e) {}
+                        ostatniBlad = `BŁĄD ${response.status} (${modelId}): ${opis}`;
+
+                        if (response.status === 401) {
+                            stanSystemuTxt.style.color = "#ff3b30";
+                            stanSystemuTxt.innerText = ostatniBlad;
+                            powiedz("Nieprawidłowy klucz Groq. Sprawdź go w ustawieniach.", "emocja-smutek");
+                            return;
+                        }
+                        continue;
                     }
-                } catch (e) { }
+                } catch (e) {
+                    ostatniBlad = `BŁĄD SIECI (${modelId}): ${e.message}`;
+                }
             }
 
-            if (!udaloSie) wznowNasluch();
+            if (!udaloSie) {
+                aktywneModeleGroq = [];
+                stanSystemuTxt.style.color = "#ff3b30";
+                stanSystemuTxt.innerText = ostatniBlad;
+                powiedz("Żaden model Groq nie odpowiedział. Sprawdź komunikat na ekranie.", "emocja-smutek");
+            }
         }
 
         let interwalKlapania;
         function powiedz(tekst, klasaUsty = 'emocja-neutralny') {
+            window.speechSynthesis.cancel();
             aktualnaWypowiedz = new SpeechSynthesisUtterance(tekst);
-            aktualnaWypowiedz.lang = 'pl-PL'; aktualnaWypowiedz.pitch = 1.1; aktualnaWypowiedz.rate = 0.95;  
+            aktualnaWypowiedz.lang = 'pl-PL'; aktualnaWypowiedz.pitch = 1.1; aktualnaWypowiedz.rate = 0.95;
             
-            czyMowi = true; stanSystemuTxt.innerText = "Gienek wesoło opowiada...";
+            czyMowi = true;
+            if (!stanSystemuTxt.innerText.startsWith("BŁĄD")) {
+                stanSystemuTxt.style.color = "#ff3366";
+                stanSystemuTxt.innerText = `${imieRobota || "Robot"} opowiada...`;
+            }
             usta.className = `usta ${klasaUsty}`;
             
             let przewidywanyCzas = 15000 + (tekst.length * 130);
@@ -331,33 +600,36 @@ ZASADY: 1. Na pytania odpowiadaj naturalnie i krótko (2-3 zdania). 2. Jeśli po
             clearInterval(interwalKlapania);
             let rosnace = true;
             
-            interwalKlapania = setInterval(() => { 
+            interwalKlapania = setInterval(() => {
                 rosnace = !rosnace;
-                usta.style.transform = rosnace ? 'scaleY(1.2) scaleX(1.05)' : 'scaleY(0.8) scaleX(0.95)'; 
-            }, 200); 
+                usta.style.transform = rosnace ? 'scaleY(1.2) scaleX(1.05)' : 'scaleY(0.8) scaleX(0.95)';
+            }, 200);
             
             aktualnaWypowiedz.onend = () => { wymusKoniecMowy(); };
             aktualnaWypowiedz.onerror = () => { wymusKoniecMowy(); };
             
-            try { rozpoznawanieMowy.stop(); } catch(e){} 
+            try { rozpoznawanieMowy.stop(); } catch (e) {}
             window.speechSynthesis.speak(aktualnaWypowiedz);
         }
 
         function wymusKoniecMowy() {
-            clearTimeout(bezpiecznikTTS); clearInterval(interwalKlapania); 
+            clearTimeout(bezpiecznikTTS); clearInterval(interwalKlapania);
             usta.style.transform = 'scale(1)';
             
-            if (trybAktywny) { stanEmocji = 1; usta.className = 'usta emocja-neutralny'; } 
+            if (trybAktywny) { stanEmocji = 1; usta.className = 'usta emocja-neutralny'; }
             else { stanEmocji = 0; usta.className = 'usta spi'; }
             
-            czyMowi = false; czasOstatniejAktywnosci = Date.now(); 
+            czyMowi = false; czasOstatniejAktywnosci = Date.now();
             wznowNasluch();
         }
 
         function wznowNasluch() {
             przetwarzanieWToku = false;
-            if (trybAktywny) stanSystemuTxt.innerText = "Gienek pilnie słucha...";
-            setTimeout(() => { try { rozpoznawanieMowy.start(); } catch(e){} }, 800); 
+            if (trybAktywny && !stanSystemuTxt.innerText.startsWith("BŁĄD")) {
+                stanSystemuTxt.style.color = "#ff3366";
+                stanSystemuTxt.innerText = `${imieRobota || "Robot"} pilnie słucha...`;
+            }
+            setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 800);
         }
     </script>
 </body>
