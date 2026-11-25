@@ -3,95 +3,493 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Czysty Robot 27.5 (Groq Vision + Zegar + Czuwanie)</title>
+    <title>Czysty Robot 30.0 (AI Agent + Vision + Narzędzia)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
     <style>
-        body { background: #050505; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Comic Sans MS', sans-serif; overflow: hidden; }
-        #startBtn { padding: 20px 40px; font-size: 24px; font-weight: bold; background: #ff3b30; color: white; border: none; border-radius: 12px; cursor: pointer; z-index: 100; }
-        video { position: absolute; opacity: 0.01; width: 10px; height: 10px; z-index: -100; pointer-events: none; }
-        
-        .usta { background-color: #ff3366; margin-bottom: 30px; transition: border-radius 0.4s ease-out, width 0.4s ease-out, height 0.4s ease-out, background-color 0.4s, transform 0.15s ease-in-out; }
-        .emocja-neutralny { width: 100px; height: 40px; border-radius: 40px; box-shadow: 0 0 30px rgba(255,51,102,0.5); }
-        .emocja-radosc { width: 70%; max-width: 250px; height: 90px; border-radius: 20px 20px 100px 100px; background-color: #ff2a5f; box-shadow: 0 0 50px rgba(255,42,95,0.8); }
-        .emocja-zaskoczenie { width: 80px; height: 80px; border-radius: 50%; box-shadow: 0 0 40px rgba(255,51,102,0.7); }
-        .emocja-smutek { width: 60%; max-width: 200px; height: 45px; border-radius: 100px 100px 20px 20px; background-color: #8833ff; box-shadow: 0 0 30px rgba(136,51,255,0.6); }
-        .spi { width: 30%; max-width: 150px; height: 8px; border-radius: 10px; background: #444; box-shadow: none; transform: scale(1) !important; }
-        
-        #debug { font-size: 14px; color: #888; text-align: center; position: absolute; bottom: 16px; width: 92%; word-break: break-word; }
-        .mqtt-status { font-weight: bold; color: #555; display: block; margin-top: 4px; font-size: 12px; }
-        .model-info { color: #666; display: block; margin-top: 3px; font-size: 11px; }
-        
-        #ustawieniaBtn { position: absolute; top: 20px; right: 20px; font-size: 35px; background: none; border: none; cursor: pointer; display: none; z-index: 50; }
-        #panelTrymera, #apiModal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(20,20,20,0.97); padding: 25px; border-radius: 15px; text-align: center; border: 2px solid #00ffcc; z-index: 200; width: 82%; max-width: 350px; }
-        #apiModal { border-color: #ff3366; z-index: 300; }
-        #apiInput { width: 92%; padding: 12px; margin: 12px 0; border-radius: 8px; border: 1px solid #444; background: #111; color: #fff; font-size: 15px; text-align: center; }
-        .strzalki { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; justify-content: center; }
-        .btnKierunek { padding: 15px; font-size: 24px; background: #333; color: white; border: none; border-radius: 10px; cursor: pointer; }
-        #zapiszBtn, .btnAkcja { padding: 13px 18px; font-size: 15px; background: #00ffcc; color: black; border: none; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 8px; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            background: radial-gradient(circle at center, #11131a 0%, #050507 75%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #startBtn {
+            padding: 20px 42px;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, #ff3366, #ff5e3a);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            z-index: 100;
+            box-shadow: 0 0 35px rgba(255, 51, 102, 0.5);
+            transition: transform 0.15s;
+        }
+        #startBtn:active { transform: scale(0.96); }
+
+        video#webcam {
+            position: fixed;
+            opacity: 0.01;
+            width: 10px;
+            height: 10px;
+            z-index: -100;
+            pointer-events: none;
+        }
+        video#webcam.podglad {
+            opacity: 1;
+            width: 160px;
+            height: 120px;
+            top: 64px;
+            left: 16px;
+            z-index: 60;
+            border-radius: 12px;
+            border: 2px solid #00ffcc;
+            object-fit: cover;
+            transform: scaleX(-1);
+            pointer-events: auto;
+        }
+
+        /* GÓRNY HUD */
+        #topHud {
+            position: fixed;
+            top: 14px;
+            left: 16px;
+            right: 70px;
+            display: none;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            z-index: 45;
+        }
+        .hud-pill {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            backdrop-filter: blur(8px);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #d8e2ec;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .hud-timer {
+            background: rgba(0, 255, 204, 0.14);
+            border-color: rgba(0, 255, 204, 0.45);
+            color: #00ffcc;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        /* PRZYCISKI NA GÓRZE PO PRAWEJ */
+        #topActions {
+            position: fixed;
+            top: 14px;
+            right: 16px;
+            display: none;
+            gap: 10px;
+            z-index: 50;
+        }
+        .iconBtn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            color: #fff;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .iconBtn:active { transform: scale(0.92); }
+
+        /* TWARZ / USTA ROBOTA */
+        #scenaUst {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 300px;
+            height: 180px;
+            cursor: pointer;
+        }
+        #aura {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 51, 102, 0.22) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s, transform 0.4s, background 0.4s;
+            pointer-events: none;
+        }
+        #aura.slucha {
+            opacity: 1;
+            animation: oddech 2.8s infinite ease-in-out;
+        }
+        #aura.mysli {
+            opacity: 1;
+            background: radial-gradient(circle, rgba(0, 255, 204, 0.32) 0%, transparent 70%);
+            animation: pulsMysli 0.9s infinite ease-in-out;
+        }
+        @keyframes oddech {
+            0%, 100% { transform: scale(0.9); opacity: 0.45; }
+            50% { transform: scale(1.18); opacity: 0.85; }
+        }
+        @keyframes pulsMysli {
+            0%, 100% { transform: scale(0.85); opacity: 0.55; }
+            50% { transform: scale(1.28); opacity: 1; }
+        }
+
+        .usta {
+            background-color: #ff3366;
+            transition: border-radius 0.35s ease-out, width 0.35s ease-out, height 0.35s ease-out, background-color 0.35s, box-shadow 0.35s, transform 0.12s ease-in-out;
+            position: relative;
+            z-index: 2;
+        }
+        .emocja-neutralny { width: 112px; height: 38px; border-radius: 40px; box-shadow: 0 0 32px rgba(255, 51, 102, 0.55); }
+        .emocja-radosc { width: 220px; height: 86px; border-radius: 20px 20px 110px 110px; background-color: #ff2a5f; box-shadow: 0 0 55px rgba(255, 42, 95, 0.85); }
+        .emocja-zaskoczenie { width: 82px; height: 82px; border-radius: 50%; background-color: #ff4d79; box-shadow: 0 0 45px rgba(255, 77, 121, 0.8); }
+        .emocja-smutek { width: 185px; height: 42px; border-radius: 100px 100px 18px 18px; background-color: #8833ff; box-shadow: 0 0 35px rgba(136, 51, 255, 0.65); }
+        .emocja-mysli { width: 130px; height: 22px; border-radius: 20px; background-color: #00ffcc; box-shadow: 0 0 40px rgba(0, 255, 204, 0.85); animation: falaMysli 0.85s infinite ease-in-out; }
+        .spi { width: 120px; height: 8px; border-radius: 10px; background: #3b3e47; box-shadow: none; transform: scale(1) !important; }
+
+        @keyframes falaMysli {
+            0%, 100% { width: 95px; opacity: 0.75; }
+            50% { width: 155px; opacity: 1; }
+        }
+
+        /* NAPISY NA ŻYWO */
+        #napisyBox {
+            width: 88%;
+            max-width: 520px;
+            min-height: 44px;
+            text-align: center;
+            font-size: 15px;
+            line-height: 1.4;
+            color: #e5ecf4;
+            margin-top: 8px;
+            padding: 0 10px;
+            opacity: 0.92;
+        }
+        #napisyBox .kto {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #00ffcc;
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        /* POLE TEKSTOWE (OPCJONALNE) */
+        #chatBar {
+            display: none;
+            position: fixed;
+            bottom: 84px;
+            width: 90%;
+            max-width: 460px;
+            gap: 8px;
+            z-index: 60;
+        }
+        #chatInput {
+            flex: 1;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid #333a4a;
+            background: rgba(18, 20, 28, 0.96);
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+        }
+        #chatSend {
+            padding: 0 18px;
+            border-radius: 12px;
+            border: none;
+            background: #00ffcc;
+            color: #050507;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        /* DOLNY STATUS */
+        #debug {
+            font-size: 13px;
+            color: #8b94a6;
+            text-align: center;
+            position: fixed;
+            bottom: 14px;
+            width: 92%;
+            word-break: break-word;
+            line-height: 1.35;
+        }
+        .mqtt-status { font-weight: 700; color: #555; display: block; margin-top: 3px; font-size: 11px; }
+        .model-info { color: #667085; display: block; margin-top: 2px; font-size: 11px; }
+
+        /* MODALE */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(16, 18, 24, 0.98);
+            padding: 20px;
+            border-radius: 18px;
+            border: 2px solid #00ffcc;
+            z-index: 200;
+            width: 90%;
+            max-width: 400px;
+            max-height: 86vh;
+            overflow-y: auto;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.85);
+        }
+        #apiModal { border-color: #ff3366; z-index: 300; text-align: center; }
+
+        .modal h3 { margin: 0 0 12px 0; color: #00ffcc; text-align: center; font-size: 18px; }
+        .sekcja {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        .sekcja h4 {
+            margin: 0 0 8px 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #8b9bb4;
+        }
+
+        .pole {
+            width: 100%;
+            padding: 10px 12px;
+            margin: 6px 0;
+            border-radius: 8px;
+            border: 1px solid #353b48;
+            background: #0c0e13;
+            color: #fff;
+            font-size: 14px;
+        }
+        .strzalki { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 10px 0; }
+        .btnKierunek { padding: 12px; font-size: 20px; background: #262b36; color: white; border: none; border-radius: 10px; cursor: pointer; }
+        .btnKierunek:active { background: #3b4252; }
+
+        .btnAkcja {
+            padding: 11px 14px;
+            font-size: 14px;
+            background: #00ffcc;
+            color: #050507;
+            border: none;
+            border-radius: 10px;
+            width: 100%;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 8px;
+        }
         .btnKlucz { background: #ff3b30; color: white; }
-        .btnReset { background: #ff9500; color: black; }
+        .btnReset { background: #ff9500; color: #111; }
+        .btnDrugorzedny { background: #262b36; color: #e5ecf4; font-weight: 600; }
+
+        .wierszOpcji {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            font-size: 13px;
+            color: #d8e2ec;
+        }
+        .wierszOpcji input[type="checkbox"] { width: 20px; height: 20px; accent-color: #00ffcc; }
+        .wierszOpcji input[type="range"] { width: 130px; accent-color: #00ffcc; }
+
+        #listaFaktowUI {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 6px;
+        }
+        .faktItem {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.35);
+            padding: 6px 8px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #cfd8e3;
+        }
+        .faktDel {
+            background: none;
+            border: none;
+            color: #ff4d4f;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+        }
+        .inlineRow { display: flex; gap: 6px; margin-top: 6px; }
+        .inlineRow .pole { margin: 0; }
+        .inlineRow .btnAkcja { margin: 0; width: auto; padding: 0 14px; }
     </style>
 </head>
 <body>
 
-    <button id="ustawieniaBtn" onclick="pokazTrymer()">⚙️</button>
+    <div id="topHud">
+        <span class="hud-pill" id="hudZegar">--:--</span>
+        <span class="hud-pill" id="hudPogoda" style="display:none;">🌡️ --</span>
+        <span id="hudTimery" style="display:contents;"></span>
+    </div>
+
+    <div id="topActions">
+        <button class="iconBtn" id="chatToggleBtn" onclick="przelaczChat()" title="Napisz wiadomość">⌨️</button>
+        <button class="iconBtn" id="ustawieniaBtn" onclick="pokazTrymer()" title="Ustawienia i Mózg">⚙️</button>
+    </div>
+
     <button id="startBtn" onclick="startPrzycisk()">OBUDŹ ROBOTA</button>
-    
-    <div class="usta spi" id="ustaGienka"></div>
+
+    <div id="scenaUst" onclick="klikniecieWTwarz()" title="Dotknij, aby przerwać mowę lub wybudzić">
+        <div id="aura"></div>
+        <div class="usta spi" id="ustaGienka"></div>
+    </div>
+
+    <div id="napisyBox"></div>
+
+    <div id="chatBar">
+        <input type="text" id="chatInput" placeholder="Napisz do robota..." onkeydown="if(event.key==='Enter') wyslijZKlawa()">
+        <button id="chatSend" onclick="wyslijZKlawa()">WYŚLIJ</button>
+    </div>
+
     <video id="webcam" autoplay playsinline muted></video>
-    
+
     <div id="debug">
         <span id="stanSystemu" style="color: #ff3366;">Robot śpi...</span>
         <span id="mqttStatus" class="mqtt-status">Sieć Neuralna: OFF</span>
         <span id="modelInfo" class="model-info">AI: oczekuje</span>
     </div>
 
-    <div id="apiModal">
-        <h3 style="margin-top:0; color:#ff3366;">Klucz API Groq</h3>
-        <p style="font-size:13px; color:#ccc; margin:0;">Wklej klucz z console.groq.com (gsk_...)</p>
-        <input type="text" id="apiInput" placeholder="gsk_..." autocomplete="off">
+    <!-- MODAL KLUCZA API -->
+    <div id="apiModal" class="modal">
+        <h3 style="color:#ff3366;">Klucz API Groq</h3>
+        <p style="font-size:13px; color:#ccc; margin:0 0 8px 0;">Wklej klucz z console.groq.com (gsk_...)</p>
+        <input type="text" id="apiInput" class="pole" placeholder="gsk_..." autocomplete="off" style="text-align:center;">
         <button class="btnAkcja btnKlucz" onclick="zapiszKluczAPI()">ZAPISZ I URUCHOM</button>
         <p id="apiError" style="color:#ff3b30; font-size:13px; display:none; margin-top:8px;">Klucz Groq musi zaczynać się od gsk_.</p>
     </div>
 
-    <div id="panelTrymera">
-        <h3 style="margin-top:0; color:#00ffcc;">Kalibracja i Pamięć</h3>
-        <div class="strzalki">
-            <div></div><button class="btnKierunek" onclick="trymuj(0, -5)">⬆️</button><div></div>
-            <button class="btnKierunek" onclick="trymuj(5, 0)">⬅️</button>
-            <button class="btnKierunek" onclick="trymuj(0, 0)">🔄</button>
-            <button class="btnKierunek" onclick="trymuj(-5, 0)">➡️</button>
-            <div></div><button class="btnKierunek" onclick="trymuj(0, 5)">⬇️</button><div></div>
+    <!-- PANEL USTAWIEŃ I MÓZGU -->
+    <div id="panelTrymera" class="modal">
+        <h3>⚙️ Mózg i Kalibracja Robota</h3>
+
+        <div class="sekcja">
+            <h4>Kalibracja Oczu (Serwa)</h4>
+            <div class="strzalki">
+                <div></div><button class="btnKierunek" onclick="trymuj(0, -5)">⬆️</button><div></div>
+                <button class="btnKierunek" onclick="trymuj(5, 0)">⬅️</button>
+                <button class="btnKierunek" onclick="trymuj(0, 0)">🔄</button>
+                <button class="btnKierunek" onclick="trymuj(-5, 0)">➡️</button>
+                <div></div><button class="btnKierunek" onclick="trymuj(0, 5)">⬇️</button><div></div>
+            </div>
+            <p style="margin: 4px 0; text-align:center; font-size:13px;">
+                Offset X: <b id="txtOffX">0</b> | Offset Y: <b id="txtOffY">0</b>
+            </p>
+            <div class="inlineRow">
+                <button class="btnAkcja btnDrugorzedny" style="flex:1;" onclick="przelaczPodgladKamery()">👁️ Podgląd kamery</button>
+                <button class="btnAkcja btnDrugorzedny" style="flex:1;" onclick="testujGesty()">🤖 Test gestów</button>
+            </div>
         </div>
-        <p style="margin: 8px 0;">X: <span id="txtOffX" style="color:white; font-weight:bold;">0</span> | Y: <span id="txtOffY" style="color:white; font-weight:bold;">0</span></p>
-        <p id="infoPamiec" style="font-size:12px; color:#aaa; margin: 6px 0;"></p>
-        <button id="zapiszBtn" onclick="zapiszTrymer()">ZAPISZ</button>
+
+        <div class="sekcja">
+            <h4>Funkcje Nowoczesne i Głos</h4>
+            <div class="wierszOpcji">
+                <span>Dźwięki robota (SFX)</span>
+                <input type="checkbox" id="chkSfx" onchange="zapiszOpcje()">
+            </div>
+            <div class="wierszOpcji">
+                <span>Tryb proaktywny (sam zagaja)</span>
+                <input type="checkbox" id="chkProaktywny" onchange="zapiszOpcje()">
+            </div>
+            <div class="wierszOpcji">
+                <span>Ton głosu (<span id="valPitch">1.1</span>)</span>
+                <input type="range" id="rngPitch" min="0.6" max="1.6" step="0.05" oninput="zapiszOpcje()">
+            </div>
+            <div class="wierszOpcji">
+                <span>Szybkość (<span id="valRate">1.0</span>)</span>
+                <input type="range" id="rngRate" min="0.75" max="1.35" step="0.05" oninput="zapiszOpcje()">
+            </div>
+            <div class="inlineRow" style="margin-top:8px;">
+                <input type="text" id="inpMiasto" class="pole" placeholder="Domyślne miasto (np. Pszczyna)">
+                <button class="btnAkcja" onclick="ustawMiastoPogody()">🌦️</button>
+            </div>
+        </div>
+
+        <div class="sekcja">
+            <h4>Pamięć Długotrwała</h4>
+            <p id="infoPamiec" style="font-size:12px; color:#aaa; margin:0 0 6px 0;"></p>
+            <div id="listaFaktowUI"></div>
+            <div class="inlineRow">
+                <input type="text" id="inpNowyFakt" class="pole" placeholder="Dodaj fakt ręcznie...">
+                <button class="btnAkcja" onclick="dodajFaktRecznie()">+</button>
+            </div>
+        </div>
+
+        <button class="btnAkcja" onclick="zapiszTrymer()">ZAPISZ I ZAMKNIJ</button>
         <button class="btnAkcja btnReset" onclick="resetujRobota()">RESETUJ PAMIĘĆ (CZYSTY START)</button>
         <button class="btnAkcja btnKlucz" onclick="zmienKlucz()">ZMIEŃ KLUCZ GROQ</button>
     </div>
 
     <script>
+        // ============================================================
+        // 1. KONFIGURACJA, PAMIĘĆ I USTAWIENIA (100% ZGODNE KLUCZE)
+        // ============================================================
         let GROQ_KEY = (localStorage.getItem('gienekGroqKey') || "").replace(/\s+/g, '');
         let aktywneModeleGroq = [];
+        let preferowanyModelVision = "";
 
-        // --- PAMIĘĆ CZYSTEGO ROBOTA ---
         let imieRobota = localStorage.getItem('czystyRobotImie') || "";
         let rolaRobota = localStorage.getItem('czystyRobotRola') || "";
         let pamiecFakty = [];
         try { pamiecFakty = JSON.parse(localStorage.getItem('czystyRobotPamiec') || "[]"); } catch (e) { pamiecFakty = []; }
-        let historiaRozmowy = [];
 
+        let opcje = { sfx: true, proaktywny: false, pitch: 1.1, rate: 1.0, miasto: "" };
+        try {
+            const zapisane = JSON.parse(localStorage.getItem('czystyRobotOpcje') || "{}");
+            opcje = { ...opcje, ...zapisane };
+        } catch (e) {}
+
+        let historiaRozmowy = []; // [{ role: 'user'|'assistant', content: '...' }]
+        let offsetX = parseInt(localStorage.getItem('gienekOffsetX')) || 0;
+        let offsetY = parseInt(localStorage.getItem('gienekOffsetY')) || 0;
+
+        // DOM
         const usta = document.getElementById('ustaGienka');
+        const aura = document.getElementById('aura');
+        const napisyBox = document.getElementById('napisyBox');
         const stanSystemuTxt = document.getElementById('stanSystemu');
         const mqttStatus = document.getElementById('mqttStatus');
         const modelInfoTxt = document.getElementById('modelInfo');
         const videoElement = document.getElementById('webcam');
+        const hudZegar = document.getElementById('hudZegar');
+        const hudPogoda = document.getElementById('hudPogoda');
+        const hudTimery = document.getElementById('hudTimery');
 
-        // Bufor klatki kamery dla AI
+        // Kamera -> Base64
         const captureCanvas = document.createElement('canvas');
         captureCanvas.width = 480;
         captureCanvas.height = 360;
@@ -99,65 +497,409 @@
         let ostatniaKlatkaB64 = null;
         let czasOstatniegoZrzutu = 0;
 
-        let mostRadiowy = null; let gotowyDoWysylania = false; let ostWysylka = 0;
-        let rozpoznawanieMowy = null; let trybAktywny = false; let czyMowi = false;
-        let aktualnaWypowiedz = null;
+        // Stan główny
+        let mostRadiowy = null;
+        let gotowyDoWysylania = false;
+        let ostWysylka = 0;
+        let rozpoznawanieMowy = null;
+        let sluchAktywny = false;
+        let trybAktywny = false;
+        let czyMowi = false;
+        let przetwarzanieWToku = false;
         let uruchomiony = false;
+        let wakeLock = null;
 
-        // --- TRYB CZUWANIA NA TWARZ ---
+        // Kolejka TTS (zapobiega ucinaniu długich wypowiedzi na iOS/Android)
+        let kolejkaZdan = [];
+        let aktualnaWypowiedz = null;
+        let bezpiecznikTTS = null;
+        let interwalKlapania = null;
+        let preferowanyGlosPL = null;
+
+        // Tryb czuwania na twarz + misja
         let trybCzuwaniaNaTwarz = false;
+        let misjaCzuwania = "";
         let czasStartuCzuwania = 0;
         let zniknalZKadru = false;
         let poczatekWidzeniaCzuwanie = 0;
 
-        let przetwarzanieWToku = false;
-        let bezpiecznikTTS = null;
+        // Świadomość przestrzenna i oczy (serwa)
         let czasOstatniejAktywnosci = Date.now();
+        let zagailProaktywnie = false;
         let stanEmocji = 0;
-
-        let offsetX = parseInt(localStorage.getItem('gienekOffsetX')) || 0;
-        let offsetY = parseInt(localStorage.getItem('gienekOffsetY')) || 0;
-
-        let glatkiX = 90 + offsetX; let glatkiY = 90 + offsetY;
-        let ostatniX = 90 + offsetX; let ostatniY = 90 + offsetY;
-        let celBladzeniaX = 90 + offsetX; let celBladzeniaY = 90 + offsetY;
+        let glatkiX = 90 + offsetX;
+        let glatkiY = 90 + offsetY;
+        let ostatniX = 90 + offsetX;
+        let ostatniY = 90 + offsetY;
+        let celBladzeniaX = 90 + offsetX;
+        let celBladzeniaY = 90 + offsetY;
         let czasZmianyBladzenia = 0;
         let czasOstatniejTwarzy = Date.now();
         let mruga = false;
         let czasOstatniejKlatki = 0;
+        let opisPrzestrzeni = "Nikogo nie widzę przed kamerą.";
 
-        function czyModelZWizja(id) {
-            return /llama-4|scout|maverick|qwen3\.[5-9]|qwen.*vl|vision|multimodal/i.test(id);
+        // Silnik gestów serw (TAK, NIE, ROZGLADAJ, MRUGNIJ)
+        let aktywnyGest = null; // { typ, start, czasTrwania }
+
+        // Pogoda i timery
+        let aktualnaPogodaTekst = "";
+        let ostatniaPogodaCzas = 0;
+        let aktywneTimery = []; // { id, koniec, opis }
+
+        // ============================================================
+        // 2. SYNTEZATOR DŹWIĘKÓW ROBOTA (WEB AUDIO API)
+        // ============================================================
+        let audioCtx = null;
+        function inicjujAudio() {
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!audioCtx && Ctx) audioCtx = new Ctx();
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            } catch (e) {}
+        }
+
+        function sfx(typ) {
+            if (!opcje.sfx) return;
+            try {
+                inicjujAudio();
+                if (!audioCtx) return;
+                const t = audioCtx.currentTime;
+                const ton = (fStart, fEnd, start, dur, vol = 0.08, wave = 'sine') => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = wave;
+                    osc.frequency.setValueAtTime(fStart, t + start);
+                    if (fEnd !== fStart) osc.frequency.exponentialRampToValueAtTime(fEnd, t + start + dur);
+                    gain.gain.setValueAtTime(0.0001, t + start);
+                    gain.gain.linearRampToValueAtTime(vol, t + start + 0.015);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, t + start + dur);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(t + start);
+                    osc.stop(t + start + dur + 0.02);
+                };
+
+                if (typ === 'budzenie') {
+                    ton(440, 660, 0, 0.12, 0.09, 'triangle');
+                    ton(660, 990, 0.11, 0.16, 0.09, 'sine');
+                } else if (typ === 'sen') {
+                    ton(620, 320, 0, 0.25, 0.07, 'sine');
+                    ton(320, 190, 0.22, 0.25, 0.05, 'sine');
+                } else if (typ === 'mysli') {
+                    ton(520, 620, 0, 0.07, 0.04, 'sine');
+                    ton(740, 680, 0.08, 0.07, 0.04, 'sine');
+                } else if (typ === 'szuka') {
+                    ton(680, 960, 0, 0.08, 0.05, 'triangle');
+                    ton(960, 1280, 0.09, 0.08, 0.05, 'triangle');
+                } else if (typ === 'zapamietal') {
+                    ton(587, 587, 0, 0.08, 0.07, 'sine');
+                    ton(880, 1174, 0.09, 0.16, 0.08, 'sine');
+                } else if (typ === 'alarm') {
+                    for (let i = 0; i < 3; i++) {
+                        ton(880, 1100, i * 0.28, 0.12, 0.12, 'triangle');
+                        ton(1100, 1320, i * 0.28 + 0.12, 0.12, 0.12, 'sine');
+                    }
+                } else if (typ === 'blad') {
+                    ton(260, 170, 0, 0.22, 0.08, 'sawtooth');
+                }
+            } catch (e) {}
+        }
+
+        // ============================================================
+        // 3. ZEGAR HUD, WAKE LOCK, TIMERY I POGODA (OPEN-METEO)
+        // ============================================================
+        setInterval(() => {
+            const teraz = new Date();
+            hudZegar.innerText = "🕒 " + teraz.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+            aktualizujTimeryUI();
+        }, 1000);
+
+        async function wlaczWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (e) {}
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && uruchomiony) wlaczWakeLock();
+        });
+
+        function dodajTimer(sekundy, opis) {
+            const s = Math.max(5, Math.min(86400, parseInt(sekundy) || 60));
+            const timer = {
+                id: Date.now() + Math.random(),
+                koniec: Date.now() + s * 1000,
+                opis: (opis || "Minutnik").trim()
+            };
+            aktywneTimery.push(timer);
+            aktualizujTimeryUI();
+        }
+
+        function usunTimer(id) {
+            aktywneTimery = aktywneTimery.filter(t => t.id !== id);
+            aktualizujTimeryUI();
+        }
+
+        function aktualizujTimeryUI() {
+            const teraz = Date.now();
+            const gotowe = [];
+            const pozostale = [];
+
+            for (const t of aktywneTimery) {
+                if (teraz >= t.koniec) gotowe.push(t);
+                else pozostale.push(t);
+            }
+            aktywneTimery = pozostale;
+
+            hudTimery.innerHTML = aktywneTimery.map(t => {
+                const poz = Math.max(0, Math.ceil((t.koniec - teraz) / 1000));
+                const min = Math.floor(poz / 60);
+                const sek = String(poz % 60).padStart(2, '0');
+                return `<span class="hud-pill hud-timer" onclick="usunTimer(${t.id})" title="Kliknij, aby anulować">⏱️ ${min}:${sek} ${t.opis} ✕</span>`;
+            }).join('');
+
+            if (gotowe.length > 0) {
+                const opisy = gotowe.map(g => g.opis).join(', ');
+                sfx('alarm');
+                trybAktywny = true;
+                trybCzuwaniaNaTwarz = false;
+                stanEmocji = 2;
+                czasOstatniejAktywnosci = Date.now();
+                uruchomGest('TAK');
+                powiedz(`Uwaga! Minął czas na: ${opisy}!`, 'emocja-radosc');
+            }
+        }
+
+        function opisKoduPogody(kod) {
+            const mapa = {
+                0: "bezchmurnie", 1: "prawie bezchmurnie", 2: "częściowe zachmurzenie", 3: "pochmurno",
+                45: "mgła", 48: "mgła osadzająca szadź",
+                51: "lekka mżawka", 53: "mżawka", 55: "gęsta mżawka",
+                61: "lekki deszcz", 63: "deszcz", 65: "ulewny deszcz",
+                71: "lekki śnieg", 73: "śnieg", 75: "intensywny śnieg",
+                80: "przelotny deszcz", 81: "przelotne opady", 82: "silne przelotne opady",
+                95: "burza", 96: "burza z gradem", 99: "silna burza z gradem"
+            };
+            return mapa[kod] || "zmienna aura";
+        }
+
+        async function pobierzPogodeDlaMiasta(nazwaMiasta) {
+            try {
+                const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(nazwaMiasta)}&count=1&language=pl&format=json`);
+                if (!geoRes.ok) return null;
+                const geoData = await geoRes.json();
+                const miejsce = geoData.results?.[0];
+                if (!miejsce) return null;
+
+                return await pobierzPogodeWspolrzedne(miejsce.latitude, miejsce.longitude, miejsce.name);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function pobierzPogodeWspolrzedne(lat, lon, etykieta = "Twoja okolica") {
+            try {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1`;
+                const res = await fetch(url);
+                if (!res.ok) return null;
+                const d = await res.json();
+                const c = d.current;
+                const day = d.daily;
+                const opis = opisKoduPogody(c.weather_code);
+                const wynik = `${etykieta}: ${Math.round(c.temperature_2m)}°C (odczuwalna ${Math.round(c.apparent_temperature)}°C), ${opis}, wiatr ${Math.round(c.wind_speed_10m)} km/h. Dziś od ${Math.round(day.temperature_2m_min[0])}°C do ${Math.round(day.temperature_2m_max[0])}°C, szansa opadów ${day.precipitation_probability_max[0]}%.`;
+                return { tekst: wynik, krotko: `🌡️ ${Math.round(c.temperature_2m)}°C ${etykieta}` };
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function odswiezDomyslnaPogode() {
+            let dane = null;
+            if (opcje.miasto) {
+                dane = await pobierzPogodeDlaMiasta(opcje.miasto);
+            } else if (navigator.geolocation) {
+                dane = await new Promise((resolve) => {
+                    navigator.geolocation.getCurrentPosition(
+                        async (pos) => resolve(await pobierzPogodeWspolrzedne(pos.coords.latitude, pos.coords.longitude, "Lokalnie")),
+                        () => resolve(null),
+                        { timeout: 5000 }
+                    );
+                });
+            }
+            if (dane) {
+                aktualnaPogodaTekst = dane.tekst;
+                ostatniaPogodaCzas = Date.now();
+                hudPogoda.innerText = dane.krotko;
+                hudPogoda.style.display = 'inline-flex';
+            }
+        }
+
+        // ============================================================
+        // 4. NARZĘDZIE WIKIPEDIA PL (WIEDZA NA ŻYWO)
+        // ============================================================
+        async function szukajWikipediaPL(zapytanie) {
+            try {
+                const sUrl = `https://pl.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(zapytanie)}&srlimit=1&format=json&origin=*`;
+                const sRes = await fetch(sUrl);
+                if (!sRes.ok) return "Brak połączenia z Wikipedią.";
+                const sData = await sRes.json();
+                const tytul = sData.query?.search?.[0]?.title;
+                if (!tytul) return `Nie znaleziono hasła "${zapytanie}" w Wikipedii.`;
+
+                const sumUrl = `https://pl.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(tytul)}`;
+                const sumRes = await fetch(sumUrl);
+                if (!sumRes.ok) return `Znaleziono hasło ${tytul}, ale nie udało się pobrać opisu.`;
+                const sumData = await sumRes.json();
+                return `Wikipedia (${sumData.title}): ${sumData.extract || "Brak opisu."}`;
+            } catch (e) {
+                return "Błąd pobierania danych z Wikipedii.";
+            }
+        }
+
+        // ============================================================
+        // 5. SILNIK GESTÓW OCZU (SERWA) I MRUGANIE
+        // ============================================================
+        function uruchomGest(typ) {
+            const czasy = { TAK: 1400, NIE: 1400, ROZGLADAJ: 2200, MRUGNIJ: 700 };
+            aktywnyGest = {
+                typ: typ.toUpperCase(),
+                start: Date.now(),
+                czasTrwania: czasy[typ.toUpperCase()] || 1200
+            };
+        }
+
+        function obliczPozycjeZGestu(teraz, bazaX, bazaY) {
+            if (!aktywnyGest) return null;
+            const postep = (teraz - aktywnyGest.start) / aktywnyGest.czasTrwania;
+            if (postep >= 1) {
+                aktywnyGest = null;
+                return null;
+            }
+            const t = aktywnyGest.typ;
+            if (t === 'TAK') {
+                const dy = Math.sin(postep * Math.PI * 4) * 28;
+                return { x: bazaX, y: bazaY + dy, w: 1 };
+            }
+            if (t === 'NIE') {
+                const dx = Math.sin(postep * Math.PI * 4) * 32;
+                return { x: bazaX + dx, y: bazaY, w: 1 };
+            }
+            if (t === 'ROZGLADAJ') {
+                const dx = Math.sin(postep * Math.PI * 2) * 42;
+                const dy = Math.cos(postep * Math.PI * 4) * 14;
+                return { x: bazaX + dx, y: bazaY + dy, w: 1 };
+            }
+            if (t === 'MRUGNIJ') {
+                const zamkniete = (postep > 0.15 && postep < 0.38) || (postep > 0.58 && postep < 0.80);
+                return { x: bazaX, y: bazaY, w: zamkniete ? 0 : 1 };
+            }
+            return null;
         }
 
         function cyklMrugania() {
-            if (trybAktywny && !czyMowi) { mruga = true; setTimeout(() => { mruga = false; }, 150); }
-            setTimeout(cyklMrugania, Math.random() * 3000 + 1500);
+            if (trybAktywny && !czyMowi && !aktywnyGest) {
+                mruga = true;
+                setTimeout(() => { mruga = false; }, 140);
+            }
+            setTimeout(cyklMrugania, Math.random() * 3200 + 1800);
         }
         setTimeout(cyklMrugania, 2000);
 
+        // ============================================================
+        // 6. PANEL USTAWIEŃ, EDYTOR PAMIĘCI I INTERAKCJE UI
+        // ============================================================
         function pokazTrymer() {
             document.getElementById('panelTrymera').style.display = 'block';
             document.getElementById('txtOffX').innerText = offsetX;
             document.getElementById('txtOffY').innerText = offsetY;
-            document.getElementById('infoPamiec').innerText =
-                `Imię: ${imieRobota || "(brak)"} | Zapisanych faktów: ${pamiecFakty.length}`;
+            document.getElementById('chkSfx').checked = opcje.sfx;
+            document.getElementById('chkProaktywny').checked = opcje.proaktywny;
+            document.getElementById('rngPitch').value = opcje.pitch;
+            document.getElementById('valPitch').innerText = opcje.pitch;
+            document.getElementById('rngRate').value = opcje.rate;
+            document.getElementById('valRate').innerText = opcje.rate;
+            document.getElementById('inpMiasto').value = opcje.miasto || "";
+            odswiezListePamieciUI();
         }
+
+        function odswiezListePamieciUI() {
+            document.getElementById('infoPamiec').innerText =
+                `Imię: ${imieRobota || "(brak)"} | Rola: ${rolaRobota || "(brak)"} | Faktów: ${pamiecFakty.length}`;
+            const kontener = document.getElementById('listaFaktowUI');
+            if (pamiecFakty.length === 0) {
+                kontener.innerHTML = `<div style="font-size:12px; color:#666; text-align:center; padding:6px;">Brak zapisanych faktów</div>`;
+                return;
+            }
+            kontener.innerHTML = pamiecFakty.map((f, i) =>
+                `<div class="faktItem"><span>${i + 1}. ${f.replace(/</g, '&lt;')}</span><button class="faktDel" onclick="usunFaktPoIndeksie(${i})">✕</button></div>`
+            ).join('');
+        }
+
+        function usunFaktPoIndeksie(idx) {
+            pamiecFakty.splice(idx, 1);
+            localStorage.setItem('czystyRobotPamiec', JSON.stringify(pamiecFakty));
+            odswiezListePamieciUI();
+        }
+
+        function dodajFaktRecznie() {
+            const inp = document.getElementById('inpNowyFakt');
+            const val = inp.value.trim();
+            if (!val) return;
+            zapiszFakt(val);
+            inp.value = "";
+            odswiezListePamieciUI();
+        }
+
+        function zapiszOpcje() {
+            opcje.sfx = document.getElementById('chkSfx').checked;
+            opcje.proaktywny = document.getElementById('chkProaktywny').checked;
+            opcje.pitch = parseFloat(document.getElementById('rngPitch').value);
+            opcje.rate = parseFloat(document.getElementById('rngRate').value);
+            document.getElementById('valPitch').innerText = opcje.pitch;
+            document.getElementById('valRate').innerText = opcje.rate;
+            localStorage.setItem('czystyRobotOpcje', JSON.stringify(opcje));
+        }
+
+        async function ustawMiastoPogody() {
+            opcje.miasto = document.getElementById('inpMiasto').value.trim();
+            localStorage.setItem('czystyRobotOpcje', JSON.stringify(opcje));
+            await odswiezDomyslnaPogode();
+            sfx('zapamietal');
+        }
+
+        function przelaczPodgladKamery() {
+            videoElement.classList.toggle('podglad');
+        }
+
+        function testujGesty() {
+            document.getElementById('panelTrymera').style.display = 'none';
+            trybAktywny = true;
+            czasOstatniejAktywnosci = Date.now();
+            uruchomGest('ROZGLADAJ');
+            sfx('budzenie');
+        }
+
         function trymuj(dx, dy) {
             if (dx === 0 && dy === 0) { offsetX = 0; offsetY = 0; } else { offsetX += dx; offsetY += dy; }
             document.getElementById('txtOffX').innerText = offsetX;
             document.getElementById('txtOffY').innerText = offsetY;
         }
+
         function zapiszTrymer() {
             localStorage.setItem('gienekOffsetX', offsetX);
             localStorage.setItem('gienekOffsetY', offsetY);
+            zapiszOpcje();
             document.getElementById('panelTrymera').style.display = 'none';
         }
+
         function zmienKlucz() {
             document.getElementById('panelTrymera').style.display = 'none';
             document.getElementById('apiInput').value = GROQ_KEY;
             document.getElementById('apiModal').style.display = 'block';
         }
+
         function resetujRobota() {
             if (confirm("Wyczyścić całe imię, charakter i wszystko czego robot się nauczył?")) {
                 localStorage.removeItem('czystyRobotImie');
@@ -167,6 +909,63 @@
             }
         }
 
+        function przelaczChat() {
+            const bar = document.getElementById('chatBar');
+            const otwarty = bar.style.display === 'flex';
+            bar.style.display = otwarty ? 'none' : 'flex';
+            if (!otwarty) document.getElementById('chatInput').focus();
+        }
+
+        async function wyslijZKlawa() {
+            const inp = document.getElementById('chatInput');
+            const tekst = inp.value.trim();
+            if (!tekst || przetwarzanieWToku) return;
+            inp.value = "";
+            if (czyMowi) przerwijMowe(false);
+            trybAktywny = true;
+            trybCzuwaniaNaTwarz = false;
+            czasOstatniejAktywnosci = Date.now();
+            obsluzWypowiedzUzytkownika(tekst);
+        }
+
+        function klikniecieWTwarz() {
+            if (!uruchomiony) return;
+            if (czyMowi) {
+                przerwijMowe(true);
+                return;
+            }
+            if (!trybAktywny && !przetwarzanieWToku) {
+                obudzRobota(imieRobota ? "Już nie śpię! Słucham." : "Obudziłem się! Słucham.");
+            }
+        }
+
+        function przerwijMowe(wznow = true) {
+            kolejkaZdan = [];
+            window.speechSynthesis.cancel();
+            clearTimeout(bezpiecznikTTS);
+            clearInterval(interwalKlapania);
+            usta.style.transform = 'scale(1)';
+            czyMowi = false;
+            if (wznow) {
+                if (trybAktywny) {
+                    stanEmocji = 1;
+                    usta.className = 'usta emocja-neutralny';
+                    aura.className = 'slucha';
+                }
+                czasOstatniejAktywnosci = Date.now();
+                wznowNasluch();
+            }
+        }
+
+        function pokazNapisy(kto, tekst) {
+            if (!tekst) { napisyBox.innerHTML = ""; return; }
+            const bezpieczny = tekst.replace(/</g, '&lt;');
+            napisyBox.innerHTML = `<span class="kto">${kto}</span>${bezpieczny}`;
+        }
+
+        // ============================================================
+        // 7. START SYSTEMU, SEN I BUDZENIE
+        // ============================================================
         function startPrzycisk() {
             if (!GROQ_KEY || !GROQ_KEY.startsWith('gsk_') || GROQ_KEY.length < 20) {
                 document.getElementById('apiModal').style.display = 'block';
@@ -183,14 +982,30 @@
             }
             GROQ_KEY = k;
             aktywneModeleGroq = [];
+            preferowanyModelVision = "";
             localStorage.setItem('gienekGroqKey', k);
             document.getElementById('apiError').style.display = 'none';
             document.getElementById('apiModal').style.display = 'none';
             if (!uruchomiony) uruchomiOS();
             else {
-                stanSystemuTxt.style.color = "#ff3366";
+                stanSystemuTxt.style.color = "#00ffcc";
                 stanSystemuTxt.innerText = "Nowy klucz Groq zapisany.";
             }
+        }
+
+        function wybierzNajlepszyGlosPL() {
+            try {
+                const glosy = window.speechSynthesis.getVoices() || [];
+                const pl = glosy.filter(g => /^pl/i.test(g.lang));
+                preferowanyGlosPL =
+                    pl.find(g => /Zosia|Krzysztof|Paulina|Marek|Google/i.test(g.name)) ||
+                    pl[0] ||
+                    null;
+            } catch (e) {}
+        }
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = wybierzNajlepszyGlosPL;
+            wybierzNajlepszyGlosPL();
         }
 
         function wymusZamkniecieOczu() {
@@ -203,13 +1018,30 @@
             setTimeout(() => { if (!trybAktywny) wyslijDoESP(cx, cy, 0, 0, true); }, 250);
         }
 
-        function uspijRobota(komunikat, zCzuwaniem = false) {
+        function obudzRobota(komunikat, emocjaKlasa = 'emocja-neutralny', emocjaKod = 1) {
+            trybAktywny = true;
+            trybCzuwaniaNaTwarz = false;
+            zagailProaktywnie = false;
+            stanEmocji = emocjaKod;
+            czasOstatniejAktywnosci = Date.now();
+            usta.className = `usta ${emocjaKlasa}`;
+            aura.className = 'slucha';
+            sfx('budzenie');
+            wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), 1, emocjaKod, true);
+            if (komunikat) powiedz(komunikat, emocjaKlasa);
+        }
+
+        function uspijRobota(komunikat, zCzuwaniem = false, misja = "") {
             trybAktywny = false;
             trybCzuwaniaNaTwarz = zCzuwaniem;
+            misjaCzuwania = misja || "";
             czasStartuCzuwania = Date.now();
             zniknalZKadru = false;
             poczatekWidzeniaCzuwanie = 0;
+            aktywnyGest = null;
+            aura.className = '';
             usta.className = 'usta spi';
+            sfx('sen');
             wymusZamkniecieOczu();
             if (komunikat) {
                 powiedz(komunikat, 'emocja-neutralny');
@@ -219,13 +1051,13 @@
         }
 
         function aktualizujStatusSnu() {
-            stanSystemuTxt.style.color = "#888";
+            stanSystemuTxt.style.color = "#8b94a6";
             if (trybCzuwaniaNaTwarz) {
                 stanSystemuTxt.innerText = zniknalZKadru
-                    ? "Czuwam (uzbrojony) — obudzę się, jak kogoś zobaczę."
+                    ? `Czuwam (uzbrojony)${misjaCzuwania ? " — misja aktywna" : ""} — czekam na ruch twarzy.`
                     : "Czuwam... odejdź na chwilę z kadru, żebym uzbroił kamerę.";
             } else {
-                stanSystemuTxt.innerText = `Śpię. Powiedz "${imieRobota || "robot"}", by wybudzić.`;
+                stanSystemuTxt.innerText = `Śpię. Powiedz "${imieRobota || "robot"}" lub dotknij ekranu.`;
             }
         }
 
@@ -242,11 +1074,17 @@
 
         function uruchomiOS() {
             uruchomiony = true;
-            window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+            inicjujAudio();
+            wlaczWakeLock();
+            wybierzNajlepszyGlosPL();
+            try { window.speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch (e) {}
+
             document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('ustawieniaBtn').style.display = 'block';
-            stanSystemuTxt.style.color = "#ff3366";
-            stanSystemuTxt.innerText = "Start systemów...";
+            document.getElementById('topActions').style.display = 'flex';
+            document.getElementById('topHud').style.display = 'flex';
+            stanSystemuTxt.style.color = "#00ffcc";
+            stanSystemuTxt.innerText = "Uruchamiam systemy neuralne...";
+
             uruchomSluch();
             setTimeout(uruchomReszte, 150);
         }
@@ -257,34 +1095,57 @@
             mostRadiowy.on('connect', () => {
                 gotowyDoWysylania = true;
                 mqttStatus.innerText = "Sieć Neuralna: ONLINE";
-                mqttStatus.style.color = "#ff3366";
+                mqttStatus.style.color = "#00ffcc";
                 if (!trybAktywny) wymusZamkniecieOczu();
+            });
+            mostRadiowy.on('offline', () => {
+                mqttStatus.innerText = "Sieć Neuralna: PONAWIANIE...";
+                mqttStatus.style.color = "#ff9500";
             });
 
             uruchomWzrok();
+            odswiezDomyslnaPogode();
+            setInterval(odswiezDomyslnaPogode, 30 * 60 * 1000);
 
             setTimeout(() => {
                 if (!imieRobota) {
-                    trybAktywny = true;
-                    stanEmocji = 3;
-                    czasOstatniejAktywnosci = Date.now();
-                    powiedz("Cześć! Jestem zupełnie czystym robotem i nic jeszcze o sobie nie wiem. Jak mam się nazywać i kim mam być?", "emocja-zaskoczenie");
+                    obudzRobota("Cześć! Jestem zupełnie czystym, inteligentnym robotem. Jak mam się nazywać i kim mam być?", "emocja-zaskoczenie", 3);
                 } else {
                     wymusZamkniecieOczu();
                     aktualizujStatusSnu();
                 }
-            }, 1400);
+            }, 1300);
         }
 
+        // ============================================================
+        // 8. WZROK, ŚWIADOMOŚĆ PRZESTRZENNA I PROAKTYWNOŚĆ
+        // ============================================================
         function uruchomWzrok() {
             const faceDetection = new FaceDetection({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}` });
             faceDetection.setOptions({ model: 'short', minDetectionConfidence: 0.5 });
 
             faceDetection.onResults((results) => {
-                let teraz = Date.now();
-                const maTwarz = Boolean(results.detections && results.detections.length > 0);
+                const teraz = Date.now();
+                const detekcje = results.detections || [];
+                const maTwarz = detekcje.length > 0;
 
-                // --- LOGIKA PODCZAS SNU / CZUWANIA ---
+                // Aktualizacja świadomości przestrzennej dla AI
+                if (maTwarz) {
+                    try {
+                        const box = detekcje[0].boundingBox;
+                        const cx = (box.xCenter !== undefined) ? box.xCenter : ((box.xMin || box.xmin || 0) + (box.width / 2));
+                        const szer = box.width || 0.2;
+                        const strona = cx < 0.36 ? "po prawej stronie" : (cx > 0.64 ? "po lewej stronie" : "na wprost");
+                        const dystans = szer > 0.34 ? "bardzo blisko" : (szer > 0.17 ? "w średniej odległości" : "daleko");
+                        opisPrzestrzeni = detekcje.length === 1
+                            ? `Widzę 1 osobę (${strona}, ${dystans}).`
+                            : `Widzę ${detekcje.length} osoby; najbliższa jest ${strona}, ${dystans}.`;
+                    } catch (e) {}
+                } else {
+                    opisPrzestrzeni = "Nikogo nie widzę w kadrze kamery.";
+                }
+
+                // --- TRYB SNU / CZUWANIA ---
                 if (!trybAktywny) {
                     const cx = Math.max(0, Math.min(180, 90 + offsetX));
                     const cy = Math.max(0, Math.min(180, 90 + offsetY));
@@ -302,14 +1163,19 @@
                         } else {
                             if (maTwarz) {
                                 if (poczatekWidzeniaCzuwanie === 0) poczatekWidzeniaCzuwanie = teraz;
-                                if (teraz - poczatekWidzeniaCzuwanie >= 1200) {
-                                    trybCzuwaniaNaTwarz = false;
-                                    trybAktywny = true;
-                                    stanEmocji = 2;
-                                    czasOstatniejAktywnosci = teraz;
+                                if (teraz - poczatekWidzeniaCzuwanie >= 1100) {
+                                    const zadanaMisja = misjaCzuwania;
+                                    misjaCzuwania = "";
                                     poczatekWidzeniaCzuwanie = 0;
-                                    wyslijDoESP(cx, cy, 1, 2, true);
-                                    powiedz("O, cześć! Widzę cię, już się obudziłem!", "emocja-radosc");
+                                    obudzRobota(null, "emocja-radosc", 2);
+                                    uruchomGest('MRUGNIJ');
+                                    if (zadanaMisja) {
+                                        przetwarzanieWToku = true;
+                                        try { rozpoznawanieMowy.stop(); } catch (e) {}
+                                        zapytajGroq(`[ZDARZENIE SYSTEMOWE: Właśnie obudziłeś się z czuwania, bo ktoś pojawił się przed kamerą. Twoja misja od właściciela brzmiała: "${zadanaMisja}". Przywitaj tę osobę i wykonaj misję.]`);
+                                    } else {
+                                        powiedz("O, cześć! Widzę cię, już się obudziłem!", "emocja-radosc");
+                                    }
                                 }
                             } else {
                                 poczatekWidzeniaCzuwanie = 0;
@@ -319,57 +1185,87 @@
                     return;
                 }
 
-                // --- LOGIKA AKTYWNA ---
+                // --- TRYB AKTYWNY ---
                 let docelowyX = 90 + offsetX;
                 let docelowyY = 90 + offsetY;
                 let widziKogos = false;
 
                 if (maTwarz) {
                     try {
-                        const box = results.detections[0].boundingBox;
+                        const box = detekcje[0].boundingBox;
                         let cx = (box.xCenter !== undefined) ? box.xCenter : ((box.xMin || box.xmin || 0) + (box.width / 2));
                         let cy = (box.yCenter !== undefined) ? box.yCenter : ((box.yMin || box.ymin || 0) + (box.height / 2));
-                        
+
                         docelowyX = Math.max(0, Math.min(180, Math.round(160 - (cx * 140)) + offsetX));
                         docelowyY = Math.max(0, Math.min(180, Math.round(160 - (cy * 140)) + offsetY));
-                        
-                        ostatniX = docelowyX; ostatniY = docelowyY;
+
+                        ostatniX = docelowyX;
+                        ostatniY = docelowyY;
                         czasOstatniejTwarzy = teraz;
                         widziKogos = true;
-                        czasOstatniejAktywnosci = teraz;
                     } catch (e) {}
                 }
 
-                if (!widziKogos) {
-                    if (teraz - czasOstatniejTwarzy < 2000) { docelowyX = ostatniX; docelowyY = ostatniY; }
+                if (!widziKogos && (teraz - czasOstatniejTwarzy < 2000)) {
+                    docelowyX = ostatniX;
+                    docelowyY = ostatniY;
                 }
 
-                if (czyMowi) {
+                // Spojrzenie "myślenia" (oczy w górę i lekko w bok)
+                if (przetwarzanieWToku && !czyMowi) {
+                    docelowyX = Math.max(0, Math.min(180, 90 + offsetX + 24));
+                    docelowyY = Math.max(0, Math.min(180, 90 + offsetY - 22));
+                } else if (czyMowi) {
                     if (teraz - czasZmianyBladzenia > (Math.random() * 800 + 700)) {
-                        celBladzeniaX = (widziKogos ? ostatniX : (90 + offsetX)) + (Math.random() * 40 - 20);
-                        celBladzeniaY = (widziKogos ? ostatniY : (90 + offsetY)) + (Math.random() * 30 - 15);
+                        celBladzeniaX = (widziKogos ? ostatniX : (90 + offsetX)) + (Math.random() * 36 - 18);
+                        celBladzeniaY = (widziKogos ? ostatniY : (90 + offsetY)) + (Math.random() * 26 - 13);
                         czasZmianyBladzenia = teraz;
                     }
-                    docelowyX = celBladzeniaX; docelowyY = celBladzeniaY;
+                    docelowyX = celBladzeniaX;
+                    docelowyY = celBladzeniaY;
                 }
 
+                // Proaktywne zagajenie (jeśli włączone w ustawieniach)
+                if (opcje.proaktywny && !zagailProaktywnie && widziKogos && !czyMowi && !przetwarzanieWToku) {
+                    if (teraz - czasOstatniejAktywnosci > 24000) {
+                        zagailProaktywnie = true;
+                        czasOstatniejAktywnosci = teraz;
+                        przetwarzanieWToku = true;
+                        try { rozpoznawanieMowy.stop(); } catch (e) {}
+                        zapytajGroq("[ZDARZENIE SYSTEMOWE: Zapadła cisza, ale widzisz przed sobą osobę. Zagadaj krótko, sympatycznie i naturalnie — np. skomentuj coś ze zdjęcia z kamery albo zapytaj czy w czymś pomóc.]");
+                        return;
+                    }
+                }
+
+                // Automatyczna drzemka przy dłuższej bezczynności
                 if (trybAktywny && !czyMowi && !przetwarzanieWToku) {
-                    if (teraz - czasOstatniejAktywnosci > 35000) {
+                    const limitBezMowy = widziKogos ? 65000 : 38000;
+                    if (teraz - czasOstatniejAktywnosci > limitBezMowy) {
                         uspijRobota("Zrobię sobie krótką drzemkę. Zawołaj mnie, gdy będziesz mnie potrzebować!", false);
                         return;
                     }
                 }
 
-                glatkiX = glatkiX + (docelowyX - glatkiX) * 0.15;
-                glatkiY = glatkiY + (docelowyY - glatkiY) * 0.15;
-
+                // Nadpisanie przez gest serw (TAK / NIE / ROZGLADAJ / MRUGNIJ)
                 let w = mruga ? 0 : 1;
+                const gestPoz = obliczPozycjeZGestu(teraz, docelowyX, docelowyY);
+                if (gestPoz) {
+                    docelowyX = Math.max(0, Math.min(180, gestPoz.x));
+                    docelowyY = Math.max(0, Math.min(180, gestPoz.y));
+                    w = gestPoz.w;
+                    glatkiX = glatkiX + (docelowyX - glatkiX) * 0.42;
+                    glatkiY = glatkiY + (docelowyY - glatkiY) * 0.42;
+                } else {
+                    glatkiX = glatkiX + (docelowyX - glatkiX) * 0.16;
+                    glatkiY = glatkiY + (docelowyY - glatkiY) * 0.16;
+                }
+
                 wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), w, stanEmocji);
             });
 
             const camera = new Camera(videoElement, {
                 onFrame: async () => {
-                    let teraz = Date.now();
+                    const teraz = Date.now();
                     if (teraz - czasOstatniejKlatki > 150) {
                         czasOstatniejKlatki = teraz;
                         if (teraz - czasOstatniegoZrzutu > 1000) {
@@ -393,8 +1289,11 @@
             mostRadiowy.publish("warsztat_gienek_12345/oczy", `${x},${y},${widzi},${emocja}`);
         }
 
+        // ============================================================
+        // 9. SŁUCH + WATCHDOG MIKROFONU
+        // ============================================================
         function czySlowoWybudzenia(tekst) {
-            if (tekst.includes("robot") || tekst.includes("pobudka") || tekst.includes("obudź się")) return true;
+            if (tekst.includes("robot") || tekst.includes("pobudka") || tekst.includes("obudź się") || tekst.includes("hej ") || tekst === "hej") return true;
             if (imieRobota) {
                 const im = imieRobota.toLowerCase();
                 if (tekst.includes(im)) return true;
@@ -405,60 +1304,89 @@
 
         function uruchomSluch() {
             window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!window.SpeechRecognition) { stanSystemuTxt.innerText = "Brak obsługi rozpoznawania mowy w przeglądarce."; return; }
+            if (!window.SpeechRecognition) {
+                stanSystemuTxt.innerText = "Brak rozpoznawania mowy — użyj klawiatury ⌨️.";
+                return;
+            }
 
             rozpoznawanieMowy = new SpeechRecognition();
-            rozpoznawanieMowy.lang = 'pl-PL'; rozpoznawanieMowy.continuous = true; rozpoznawanieMowy.interimResults = false;
+            rozpoznawanieMowy.lang = 'pl-PL';
+            rozpoznawanieMowy.continuous = true;
+            rozpoznawanieMowy.interimResults = false;
+
+            rozpoznawanieMowy.onstart = () => { sluchAktywny = true; };
 
             rozpoznawanieMowy.onresult = async (event) => {
-                let tekst = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-                czasOstatniejAktywnosci = Date.now();
-                
-                if (przetwarzanieWToku || czyMowi) return;
+                const tekst = event.results[event.results.length - 1][0].transcript.trim();
+                const tekstLower = tekst.toLowerCase();
+                if (przetwarzanieWToku || czyMowi || tekst.length < 2) return;
 
                 if (!trybAktywny) {
-                    if (czySlowoWybudzenia(tekst)) {
-                        trybAktywny = true;
-                        trybCzuwaniaNaTwarz = false;
-                        stanEmocji = 1;
-                        usta.className = 'usta emocja-neutralny';
-                        wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), 1, 1, true);
-                        powiedz(imieRobota ? "Jestem! Słucham uważnie." : "Obudziłem się! Słucham.");
+                    if (czySlowoWybudzenia(tekstLower)) {
+                        obudzRobota(imieRobota ? "Jestem! Słucham uważnie." : "Obudziłem się! Słucham.");
                     }
-                } else {
-                    const chceSpac = tekst.includes("spać") || tekst.includes("śpij") || tekst.includes("wyłącz się") || tekst.includes("dobranoc") || tekst.includes("drzemk");
-                    const warunekKamery = tekst.includes("zobacz") || tekst.includes("kogoś") || tekst.includes("ktoś") || tekst.includes("twarz") || tekst.includes("obudź") || tekst.includes("czuwaj") || tekst.includes("podejdzie") || tekst.includes("wejdzie");
-
-                    if (chceSpac && warunekKamery) {
-                        uspijRobota("Dobrze, zamykam oczy i czuwam. Obudzę się, jak tylko kogoś zobaczę!", true);
-                        return;
-                    }
-                    if (chceSpac) {
-                        uspijRobota("Dobranoc, idę spać!", false);
-                        return;
-                    }
-
-                    if (tekst.length < 2) return;
-                    
-                    przetwarzanieWToku = true;
-                    try { rozpoznawanieMowy.stop(); } catch (e) {}
-                    
-                    await zapytajGroq(tekst);
+                    return;
                 }
+
+                czasOstatniejAktywnosci = Date.now();
+                zagailProaktywnie = false;
+                obsluzWypowiedzUzytkownika(tekst);
             };
-            
+
             rozpoznawanieMowy.onerror = (event) => {
-                stanSystemuTxt.innerText = "Błąd słuchu: " + event.error;
-                if (event.error === 'no-speech' || event.error === 'network') {
-                    if (!czyMowi && !przetwarzanieWToku) setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 500);
+                sluchAktywny = false;
+                if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                    stanSystemuTxt.innerText = "Mikrofon: " + event.error;
+                }
+                if (!czyMowi && !przetwarzanieWToku) {
+                    setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 600);
                 }
             };
 
             rozpoznawanieMowy.onend = () => {
-                if (!czyMowi && !przetwarzanieWToku) setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 200);
+                sluchAktywny = false;
+                if (!czyMowi && !przetwarzanieWToku) {
+                    setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 250);
+                }
             };
-            
+
             try { rozpoznawanieMowy.start(); } catch (e) {}
+
+            // Watchdog — pilnuje, by przeglądarka mobilna nie uśpiła mikrofonu na stałe
+            setInterval(() => {
+                if (uruchomiony && rozpoznawanieMowy && !sluchAktywny && !czyMowi && !przetwarzanieWToku) {
+                    try { rozpoznawanieMowy.start(); } catch (e) {}
+                }
+            }, 4000);
+        }
+
+        async function obsluzWypowiedzUzytkownika(tekst) {
+            const lower = tekst.toLowerCase();
+            pokazNapisy("Ty", tekst);
+
+            // Szybkie komendy lokalne (bez opóźnienia AI)
+            const chceSpac = /\b(spać|śpij|wyłącz się|dobranoc|drzemk)\b/i.test(lower);
+            const warunekKamery = /(zobacz|kogoś|ktoś|twarz|obudź|czuwaj|podejdzie|wejdzie|pilnuj)/i.test(lower);
+
+            if (chceSpac && warunekKamery && !/(powiedz|zapytaj|przekaż)/i.test(lower)) {
+                uspijRobota("Dobrze, zamykam oczy i czuwam. Obudzę się, jak tylko kogoś zobaczę!", true);
+                return;
+            }
+            if (chceSpac && !warunekKamery) {
+                uspijRobota("Dobranoc, idę spać!", false);
+                return;
+            }
+
+            przetwarzanieWToku = true;
+            try { rozpoznawanieMowy.stop(); } catch (e) {}
+            await zapytajGroq(tekst);
+        }
+
+        // ============================================================
+        // 10. MÓZG GROQ (VISION + PAMIĘĆ + AGENTOWE NARZĘDZIA)
+        // ============================================================
+        function czyModelZWizja(id) {
+            return /llama-4|scout|maverick|qwen3\.[5-9]|qwen.*vl|vision|multimodal/i.test(id);
         }
 
         async function pobierzAktywneModeleGroq() {
@@ -469,7 +1397,7 @@
             if (!response.ok) {
                 let opis = "";
                 try { const err = await response.json(); opis = err?.error?.message || ""; } catch (e) {}
-                throw new Error(`BŁĄD ${response.status} (pobieranie modeli): ${opis}`);
+                throw new Error(`BŁĄD ${response.status} (modele): ${opis}`);
             }
             const data = await response.json();
             const wszystkie = (data.data || []).filter(m => m.active !== false).map(m => m.id);
@@ -477,15 +1405,16 @@
             let czatowe = wszystkie.filter(id => !wykluczone.test(id));
             if (czatowe.length === 0) czatowe = wszystkie;
 
-            // Priorytet dla modeli obsługujących obraz (Llama 4 / Qwen 3.8+ / Vision), dopiero potem tekstowe
             czatowe.sort((a, b) => {
                 const waga = (id) => {
+                    if (id === preferowanyModelVision) return 0;
                     if (/llama-4-scout/i.test(id)) return 1;
-                    if (/qwen3\.[5-9]/i.test(id)) return 2;
-                    if (/llama-4-maverick/i.test(id)) return 3;
+                    if (/llama-4-maverick/i.test(id)) return 2;
+                    if (/qwen3\.[5-9]/i.test(id)) return 3;
                     if (czyModelZWizja(id)) return 4;
-                    if (/llama-3\.3|llama-3|gpt-oss|qwen|kimi|gemma/i.test(id)) return 5;
-                    return 6;
+                    if (/llama-3\.3-70b/i.test(id)) return 5;
+                    if (/llama-3|gpt-oss|qwen|kimi|gemma/i.test(id)) return 6;
+                    return 7;
                 };
                 return waga(a) - waga(b);
             });
@@ -497,14 +1426,82 @@
             if (!f) return;
             if (!pamiecFakty.some(x => x.toLowerCase() === f.toLowerCase())) {
                 pamiecFakty.push(f);
-                if (pamiecFakty.length > 60) pamiecFakty.shift();
+                if (pamiecFakty.length > 80) pamiecFakty.shift();
                 localStorage.setItem('czystyRobotPamiec', JSON.stringify(pamiecFakty));
             }
         }
 
-        async function zapytajGroq(pytanie) {
-            stanSystemuTxt.style.color = "#ff3366";
-            stanSystemuTxt.innerText = "Łączę z Groq...";
+        function usunFaktPoSlowie(fraza) {
+            const q = fraza.trim().toLowerCase();
+            if (!q) return false;
+            const przed = pamiecFakty.length;
+            pamiecFakty = pamiecFakty.filter(f => !f.toLowerCase().includes(q));
+            if (pamiecFakty.length !== przed) {
+                localStorage.setItem('czystyRobotPamiec', JSON.stringify(pamiecFakty));
+                return true;
+            }
+            return false;
+        }
+
+        function zbudujSystemPrompt(maObraz, dodatkoweDaneNarzedzi = "") {
+            const teraz = new Date();
+            const aktualnaDataCzas = teraz.toLocaleString('pl-PL', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+
+            const listaTimerow = aktywneTimery.length > 0
+                ? aktywneTimery.map(t => `${t.opis} (zostało ${Math.max(1, Math.round((t.koniec - Date.now()) / 1000))} s)`).join("; ")
+                : "brak";
+
+            const listaPamieci = pamiecFakty.length > 0
+                ? pamiecFakty.map((f, i) => `${i + 1}. ${f}`).join("\n")
+                : "Brak zapisanych faktów.";
+
+            return `Jesteś super inteligentnym, empatycznym, fizycznym robotem z ruchomymi oczami (serwa) i kamerą. Uczysz się od swojego rozmówcy, potrafisz prowadzić naturalną rozmowę, rozwiązywać zagadki, uczyć, opowiadać bajki i korzystać z narzędzi na żywo.
+
+SENSORY I STAN NA ŻYWO:
+- Zegar: ${aktualnaDataCzas}
+- Wzrok przestrzenny: ${opisPrzestrzeni}
+- Kamera: ${maObraz ? "MASZ ZAŁĄCZONE AKTUALNE ZDJĘCIE ZE SWOJEJ KAMERY. Opisuj dokładnie to, co na nim widzisz, gdy rozmówca pyta lub pokazuje przedmiot." : "Chwilowo brak zdjęcia z kamery — korzystaj z danych przestrzennych powyżej."}
+- Pogoda domyślna: ${aktualnaPogodaTekst || "niepobrana (możesz użyć narzędzia POGODA)"}
+- Aktywne minutniki: ${listaTimerow}
+
+TOŻSAMOŚĆ:
+- Imię: ${imieRobota || "BRAK (jesteś świeżo uruchomionym robotem, jeszcze nie masz imienia)"}
+- Rola / charakter: ${rolaRobota || "Dopasowujesz styl i inteligencję do rozmówcy — ciekawy świata, błyskotliwy i ciepły"}
+
+TRWAŁA PAMIĘĆ:
+${listaPamieci}
+${dodatkoweDaneNarzedzi ? `\nWYNIK TWOICH NARZĘDZI (użyj tej wiedzy w odpowiedzi, nie wywołuj już ponownie tego samego narzędzia):\n${dodatkoweDaneNarzedzi}\n` : ""}
+NARZĘDZIA NA ŻYWO (jeśli potrzebujesz aktualnych danych, odpowiedz WYŁĄCZNIE jednym tagiem narzędzia):
+- [WIKI: hasło] — gdy potrzebujesz pewnej wiedzy z polskiej Wikipedii (historia, nauka, geografia, biografie, definicje).
+- [POGODA: miasto] — gdy rozmówca pyta o pogodę w konkretnym mieście lub gdy brak domyślnej pogody.
+
+AKCJE I STEROWANIE (opcjonalne niewidoczne tagi na POCZĄTKU odpowiedzi):
+- [IMIE: NoweImie] — gdy rozmówca nadaje lub zmienia Twoje imię.
+- [ROLA: krótki opis] — gdy określa Twoją rolę lub charakter.
+- [ZAPAMIETAJ: konkretny fakt] — gdy warto zapamiętać nową informację na stałe.
+- [USUN_FAKT: słowo kluczowe] — gdy rozmówca każe zapomnieć lub poprawić konkretny fakt.
+- [ZAPOMNIJ] — pełny reset pamięci.
+- [TIMER: sekundy | opis] — ustawienie minutnika/przypomnienia (np. [TIMER: 180 | Herbata]).
+- [GEST: TAK] lub [GEST: NIE] lub [GEST: ROZGLADAJ] lub [GEST: MRUGNIJ] — fizyczny gest ruchomymi oczami pasujący do wypowiedzi!
+- [SPAC] — pójście spać.
+- [CZUWAJ] lub [CZUWAJ: krótka misja] — zamknięcie oczu i wybudzenie po zobaczeniu osoby (z opcjonalną misją do wykonania po przebudzeniu).
+
+ZASADY ODPOWIEDZI:
+1. Mów WYŁĄCZNIE po polsku, naturalnym językiem mówionym (bez gwiazdek, markdownu, wypunktowań i emotikon).
+2. Bądź błyskotliwy, konkretny i zwięzły (zwykle 2-3 zdania), chyba że rozmówca prosi o bajkę, szczegółowe wyjaśnienie lub quiz.
+3. Nie witaj się ponownie w środku rozmowy.
+4. Na SAMYM KOŃCU każdej zwykłej odpowiedzi ZAWSZE dopisz jedną emocję: [RADOSC], [ZASKOCZENIE], [SMUTEK] lub [NEUTRALNY].`;
+        }
+
+        async function zapytajGroq(pytanie, poziomNarzedzi = 0, daneNarzedzi = "") {
+            stanSystemuTxt.style.color = "#00ffcc";
+            stanSystemuTxt.innerText = poziomNarzedzi > 0 ? "Analizuję zebrane dane..." : "Myślę...";
+            usta.className = 'usta emocja-mysli';
+            aura.className = 'mysli';
+            if (poziomNarzedzi === 0) sfx('mysli');
 
             if (aktywneModeleGroq.length === 0) {
                 try {
@@ -512,7 +1509,8 @@
                 } catch (e) {
                     stanSystemuTxt.style.color = "#ff3b30";
                     stanSystemuTxt.innerText = e.message;
-                    powiedz("Nie mogę pobrać listy modeli z Groq. Sprawdź klucz i komunikat na ekranie.", "emocja-smutek");
+                    sfx('blad');
+                    powiedz("Nie mogę pobrać listy modeli z Groq. Sprawdź klucz API.", "emocja-smutek");
                     return;
                 }
             }
@@ -520,83 +1518,53 @@
             if (aktywneModeleGroq.length === 0) {
                 stanSystemuTxt.style.color = "#ff3b30";
                 stanSystemuTxt.innerText = "BŁĄD: Brak włączonych modeli na koncie Groq.";
+                sfx('blad');
                 powiedz("Na tym koncie Groq nie ma aktywnych modeli.", "emocja-smutek");
                 return;
             }
 
-            const teraz = new Date();
-            const aktualnaDataCzas = teraz.toLocaleString('pl-PL', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-
-            const statusTozsamosci = imieRobota
-                ? `Twoje nauczone imię: ${imieRobota}.`
-                : `NIE MASZ JESZCZE IMIENIA. Jesteś czystym, nowo uruchomionym robotem, który dopiero poznaje świat.`;
-
-            const statusRoli = rolaRobota
-                ? `Twoja nauczona rola i charakter: ${rolaRobota}.`
-                : `Nie masz jeszcze ustalonej roli ani charakteru — dopasuj się do tego, czego uczy Cię rozmówca.`;
-
-            const listaPamieci = pamiecFakty.length > 0
-                ? pamiecFakty.map((f, i) => `${i + 1}. ${f}`).join("\n")
-                : "Brak zapisanych faktów — ucz się wszystkiego, co powie rozmówca.";
-
-            const historiaTekst = historiaRozmowy.length > 0
-                ? "\nOSTATNIA ROZMOWA:\n" + historiaRozmowy.map(h => `${h.kto}: ${h.tekst}`).join("\n")
-                : "";
-
-            const zbudujPrompt = (maObraz) => `Jesteś fizycznym, ciekawym świata robotem z ruchomymi oczami i kamerą, który uczy się wszystkiego od swojego rozmówcy.
-AKTUALNA DATA I GODZINA (Twój wbudowany zegar): ${aktualnaDataCzas}.
-${statusTozsamosci}
-${statusRoli}
-
-STATUS KAMERY: ${maObraz
-    ? "MASZ ZAŁĄCZONE AKTUALNE ZDJĘCIE ZE SWOJEJ KAMERY. Zawsze korzystaj z tego obrazu i opisz po polsku to, co widzisz, gdy rozmówca o to pyta."
-    : "Chwilowo działasz bez obrazu z kamery — jeśli rozmówca pyta co widzisz, powiedz krótko, że ten model chwilowo nie ma podglądu z kamery."}
-
-TWOJA TRWAŁA PAMIĘĆ (wszystko, czego do tej pory się nauczyłeś):
-${listaPamieci}${historiaTekst}
-
-ZASADY:
-1. Odpowiadaj WYŁĄCZNIE po polsku, naturalnym prostym tekstem do czytania na głos (bez gwiazdek, list wypunktowanych i emotikon).
-2. Odpowiadaj krótko, naturalnie i bezpośrednio (2-3 zdania), chyba że rozmówca prosi o dłuższą opowieść lub bajkę. Nie witaj się ponownie w środku rozmowy.
-3. Jeśli rozmówca pyta o godzinę, dzień tygodnia lub datę — podaj ją na podstawie Twojego wbudowanego zegara powyżej.
-4. UCZENIE SIĘ I STEROWANIE (niewidoczne tagi na SAMYM POCZĄTKU odpowiedzi):
-   - Gdy rozmówca nadaje lub zmienia Twoje imię: [IMIE: NoweImie]
-   - Gdy rozmówca określa kim masz być, jaki masz mieć charakter lub dla kogo jesteś: [ROLA: krotki opis roli]
-   - Gdy rozmówca uczy Cię jakiegokolwiek nowego faktu (imiona domowników, upodobania, zasady, wiedza): [ZAPAMIETAJ: krotki konkretny fakt]
-   - Gdy rozmówca każe Ci zapomnieć wszystko / zresetować pamięć: [ZAPOMNIJ]
-   - Gdy rozmówca żegna się albo każe Ci iść spać na stałe: [SPAC]
-   - Gdy rozmówca każe Ci spać / zamknąć oczy, ale obudzić się jak kogoś zobaczysz: [CZUWAJ]
-5. WYMÓG ABSOLUTNY: Na samym końcu odpowiedzi ZAWSZE dopisz jedną emocję w nawiasie kwadratowym: [RADOSC] lub [ZASKOCZENIE] lub [SMUTEK] lub [NEUTRALNY].
-
-Rozmówca powiedział: ${pytanie}`;
-
-            let zdjecieB64 = przechwycKlatke();
+            const zdjecieB64 = przechwycKlatke();
             let udaloSie = false;
             let ostatniBlad = "Brak odpowiedzi z serwera Groq";
             let powodBrakuObrazu = zdjecieB64 ? "" : "brak klatki z kamery";
 
             for (let idx = 0; idx < aktywneModeleGroq.length; idx++) {
-                let modelId = aktywneModeleGroq[idx];
-                stanSystemuTxt.innerText = `Myślę (${modelId})...`;
+                const modelId = aktywneModeleGroq[idx];
+                stanSystemuTxt.innerText = `${poziomNarzedzi > 0 ? "Synteza" : "Myślę"} (${modelId})...`;
+
                 try {
                     const modelObslugujeObraz = czyModelZWizja(modelId);
                     let czyObraz = Boolean(zdjecieB64 && modelObslugujeObraz);
 
-                    const wyslij = async (zObrazem) => {
-                        const prompt = zbudujPrompt(zObrazem);
-                        const content = zObrazem
-                            ? [
-                                { type: "text", text: prompt },
-                                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${zdjecieB64}` } }
-                              ]
-                            : prompt;
+                    const wyslij = async (zObrazem, scalonySystem = false) => {
+                        const sysPrompt = zbudujSystemPrompt(zObrazem, daneNarzedzi);
+                        const ostatnieTury = historiaRozmowy.slice(-10);
+                        const messages = [];
+
+                        if (!scalonySystem) {
+                            messages.push({ role: "system", content: sysPrompt });
+                            ostatnieTury.forEach(m => messages.push({ role: m.role, content: m.content }));
+                            const userContent = zObrazem
+                                ? [
+                                    { type: "text", text: pytanie },
+                                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${zdjecieB64}` } }
+                                  ]
+                                : pytanie;
+                            messages.push({ role: "user", content: userContent });
+                        } else {
+                            // Bezpieczny fallback dla modeli vision nieakceptujących roli "system"
+                            const histTxt = ostatnieTury.length
+                                ? "\nOSTATNIA ROZMOWA:\n" + ostatnieTury.map(m => `${m.role === 'user' ? 'Rozmówca' : (imieRobota || 'Robot')}: ${m.content}`).join("\n")
+                                : "";
+                            const pelnyTekst = `${sysPrompt}${histTxt}\n\nRozmówca powiedział: ${pytanie}`;
+                            const userContent = zObrazem
+                                ? [
+                                    { type: "text", text: pelnyTekst },
+                                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${zdjecieB64}` } }
+                                  ]
+                                : pelnyTekst;
+                            messages.push({ role: "user", content: userContent });
+                        }
 
                         return await fetch("https://api.groq.com/openai/v1/chat/completions", {
                             method: 'POST',
@@ -606,119 +1574,176 @@ Rozmówca powiedział: ${pytanie}`;
                             },
                             body: JSON.stringify({
                                 model: modelId,
-                                messages: [{ role: "user", content: content }],
-                                temperature: 0.7,
+                                messages,
+                                temperature: 0.65,
                                 max_completion_tokens: 1200
                             })
                         });
                     };
 
-                    let response = await wyslij(czyObraz);
+                    let response = await wyslij(czyObraz, false);
+
+                    // Jeśli 400 przy obrazie, najpierw spróbuj ten sam model ze scalonym systemem
+                    if (!response.ok && response.status === 400 && czyObraz) {
+                        response = await wyslij(true, true);
+                    }
+
                     if (!response.ok && response.status === 400 && czyObraz) {
                         try {
                             const errObj = await response.clone().json();
-                            powodBrakuObrazu = `${modelId} odrzucił obraz: ${errObj?.error?.message || "400"}`;
+                            powodBrakuObrazu = `${modelId}: ${errObj?.error?.message || "400"}`;
                         } catch (e) {
-                            powodBrakuObrazu = `${modelId} odrzucił obraz (400)`;
+                            powodBrakuObrazu = `${modelId} (400)`;
                         }
-                        const jestInnyModelZWizja = aktywneModeleGroq.slice(idx + 1).some(id => czyModelZWizja(id));
-                        if (jestInnyModelZWizja) continue;
-
+                        const jestInnyVision = aktywneModeleGroq.slice(idx + 1).some(id => czyModelZWizja(id));
+                        if (jestInnyVision) continue;
                         czyObraz = false;
-                        response = await wyslij(false);
+                        response = await wyslij(false, false);
                     }
 
                     if (response.ok) {
                         const data = await response.json();
                         let odp = data.choices?.[0]?.message?.content;
-                        if (odp) {
-                            modelInfoTxt.innerText = czyObraz
-                                ? `AI: ${modelId} | 👁️ OBRAZ OK`
-                                : `AI: ${modelId} | 📝 TYLKO TEKST (${powodBrakuObrazu || "model bez wizji"})`;
+                        if (!odp) continue;
 
-                            odp = odp.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<think>[\s\S]*$/gi, '').trim();
-                            let komunikatNauki = "";
+                        if (czyObraz) preferowanyModelVision = modelId;
+                        modelInfoTxt.innerText = czyObraz
+                            ? `AI: ${modelId} | 👁️ VISION OK`
+                            : `AI: ${modelId} | 📝 TEKST (${powodBrakuObrazu || "bez wizji"})`;
 
-                            if (odp.includes('[ZAPOMNIJ]')) {
-                                imieRobota = ""; rolaRobota = ""; pamiecFakty = []; historiaRozmowy = [];
-                                localStorage.removeItem('czystyRobotImie');
-                                localStorage.removeItem('czystyRobotRola');
-                                localStorage.removeItem('czystyRobotPamiec');
-                                komunikatNauki = "Wyczyściłem pamięć do zera!";
+                        odp = odp.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<think>[\s\S]*$/gi, '').trim();
+
+                        // --- SPRAWDZENIE NARZĘDZI AGENTOWYCH (max 1 pętla na zapytanie) ---
+                        if (poziomNarzedzi === 0) {
+                            const wikiMatch = odp.match(/\[WIKI:\s*(.*?)\]/i);
+                            if (wikiMatch && wikiMatch[1].trim()) {
+                                const haslo = wikiMatch[1].trim();
+                                sfx('szuka');
+                                stanSystemuTxt.innerText = `🌐 Szukam w Wikipedii: ${haslo}...`;
+                                const wynikWiki = await szukajWikipediaPL(haslo);
+                                await zapytajGroq(pytanie, 1, wynikWiki);
+                                return;
                             }
 
-                            let wykrImie = odp.match(/\[IMIE:\s*(.*?)\]/i);
-                            if (wykrImie && wykrImie[1].trim()) {
-                                imieRobota = wykrImie[1].trim();
-                                localStorage.setItem('czystyRobotImie', imieRobota);
-                                komunikatNauki = `Nauczyłem się imienia: ${imieRobota}`;
+                            const pogodaMatch = odp.match(/\[POGODA:\s*(.*?)\]/i);
+                            if (pogodaMatch && pogodaMatch[1].trim()) {
+                                const miasto = pogodaMatch[1].trim();
+                                sfx('szuka');
+                                stanSystemuTxt.innerText = `🌦️ Sprawdzam pogodę: ${miasto}...`;
+                                const danePog = await pobierzPogodeDlaMiasta(miasto);
+                                const wynikPog = danePog ? danePog.tekst : `Nie udało się znaleźć pogody dla miasta ${miasto}.`;
+                                await zapytajGroq(pytanie, 1, wynikPog);
+                                return;
                             }
-
-                            let wykrRola = odp.match(/\[ROLA:\s*(.*?)\]/i);
-                            if (wykrRola && wykrRola[1].trim()) {
-                                rolaRobota = wykrRola[1].trim();
-                                localStorage.setItem('czystyRobotRola', rolaRobota);
-                                komunikatNauki = komunikatNauki || `Zapisałem nową rolę!`;
-                            }
-
-                            const dopasowaniaFaktow = [...odp.matchAll(/\[ZAPAMIETAJ:\s*(.*?)\]/gi)];
-                            if (dopasowaniaFaktow.length > 0) {
-                                dopasowaniaFaktow.forEach(m => zapiszFakt(m[1]));
-                                komunikatNauki = `Nauczyłem się: ${dopasowaniaFaktow[dopasowaniaFaktow.length - 1][1].trim()}`;
-                            }
-
-                            let idzieCzuwac = /\[CZUWAJ\]/i.test(odp);
-                            let idzieSpac = /\[SPAC\]/i.test(odp);
-
-                            if (komunikatNauki) {
-                                setTimeout(() => {
-                                    stanSystemuTxt.style.color = "#00ffcc";
-                                    stanSystemuTxt.innerText = komunikatNauki;
-                                }, 400);
-                            }
-
-                            let wykrEmocja = odp.match(/\[(RADOSC|ZASKOCZENIE|SMUTEK|NEUTRALNY)\]/i);
-                            let klasaUsty = 'emocja-neutralny'; stanEmocji = 1;
-
-                            if (wykrEmocja) {
-                                let em = wykrEmocja[1].toUpperCase();
-                                if (em === 'RADOSC') { klasaUsty = 'emocja-radosc'; stanEmocji = 2; }
-                                else if (em === 'ZASKOCZENIE') { klasaUsty = 'emocja-zaskoczenie'; stanEmocji = 3; }
-                                else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
-                            }
-
-                            let czystyTekst = odp.replace(/\[.*?\]/g, '').replace(/[*#_`]/g, '').trim();
-                            if (czystyTekst.length < 2) czystyTekst = (idzieSpac || idzieCzuwac) ? "Dobranoc!" : "Zapamiętałem!";
-
-                            historiaRozmowy.push({ kto: "Rozmówca", tekst: pytanie });
-                            historiaRozmowy.push({ kto: imieRobota || "Robot", tekst: czystyTekst });
-                            if (historiaRozmowy.length > 10) historiaRozmowy = historiaRozmowy.slice(-10);
-
-                            if (idzieCzuwac) {
-                                uspijRobota(czystyTekst, true);
-                            } else if (idzieSpac) {
-                                uspijRobota(czystyTekst, false);
-                            } else {
-                                powiedz(czystyTekst, klasaUsty);
-                            }
-                            udaloSie = true; break;
                         }
+
+                        // --- PARSOWANIE AKCJI I PAMIĘCI ---
+                        let komunikatNauki = "";
+
+                        if (/\[ZAPOMNIJ\]/i.test(odp)) {
+                            imieRobota = ""; rolaRobota = ""; pamiecFakty = []; historiaRozmowy = [];
+                            localStorage.removeItem('czystyRobotImie');
+                            localStorage.removeItem('czystyRobotRola');
+                            localStorage.removeItem('czystyRobotPamiec');
+                            komunikatNauki = "Wyczyściłem pamięć do zera!";
+                        }
+
+                        const wykrImie = odp.match(/\[IMIE:\s*(.*?)\]/i);
+                        if (wykrImie && wykrImie[1].trim()) {
+                            imieRobota = wykrImie[1].trim();
+                            localStorage.setItem('czystyRobotImie', imieRobota);
+                            komunikatNauki = `Moje nowe imię: ${imieRobota}`;
+                            sfx('zapamietal');
+                        }
+
+                        const wykrRola = odp.match(/\[ROLA:\s*(.*?)\]/i);
+                        if (wykrRola && wykrRola[1].trim()) {
+                            rolaRobota = wykrRola[1].trim();
+                            localStorage.setItem('czystyRobotRola', rolaRobota);
+                            komunikatNauki = komunikatNauki || "Zapisałem nową rolę!";
+                            sfx('zapamietal');
+                        }
+
+                        const usunMatches = [...odp.matchAll(/\[USUN_FAKT:\s*(.*?)\]/gi)];
+                        if (usunMatches.length > 0) {
+                            usunMatches.forEach(m => usunFaktPoSlowie(m[1]));
+                            komunikatNauki = "Zaktualizowałem pamięć.";
+                        }
+
+                        const faktyMatches = [...odp.matchAll(/\[ZAPAMIETAJ:\s*(.*?)\]/gi)];
+                        if (faktyMatches.length > 0) {
+                            faktyMatches.forEach(m => zapiszFakt(m[1]));
+                            komunikatNauki = `Zapamiętałem: ${faktyMatches[faktyMatches.length - 1][1].trim()}`;
+                            sfx('zapamietal');
+                        }
+
+                        const timerMatches = [...odp.matchAll(/\[TIMER:\s*(\d+)\s*(?:\|\s*(.*?))?\]/gi)];
+                        if (timerMatches.length > 0) {
+                            timerMatches.forEach(m => dodajTimer(m[1], m[2] || "Minutnik"));
+                            komunikatNauki = `Ustawiono minutnik (${timerMatches[0][2] || timerMatches[0][1] + " s"})`;
+                            sfx('zapamietal');
+                        }
+
+                        const gestMatch = odp.match(/\[GEST:\s*(TAK|NIE|ROZGLADAJ|MRUGNIJ)\]/i);
+                        if (gestMatch) {
+                            uruchomGest(gestMatch[1]);
+                        }
+
+                        const czuwajMatch = odp.match(/\[CZUWAJ(?::\s*(.*?))?\]/i);
+                        const idzieCzuwac = Boolean(czuwajMatch);
+                        const misjaZAI = czuwajMatch?.[1]?.trim() || "";
+                        const idzieSpac = /\[SPAC\]/i.test(odp);
+
+                        if (komunikatNauki) {
+                            setTimeout(() => {
+                                stanSystemuTxt.style.color = "#00ffcc";
+                                stanSystemuTxt.innerText = komunikatNauki;
+                            }, 350);
+                        }
+
+                        // Emocja
+                        const wykrEmocja = odp.match(/\[(RADOSC|ZASKOCZENIE|SMUTEK|NEUTRALNY)\]/i);
+                        let klasaUsty = 'emocja-neutralny';
+                        stanEmocji = 1;
+                        if (wykrEmocja) {
+                            const em = wykrEmocja[1].toUpperCase();
+                            if (em === 'RADOSC') { klasaUsty = 'emocja-radosc'; stanEmocji = 2; }
+                            else if (em === 'ZASKOCZENIE') { klasaUsty = 'emocja-zaskoczenie'; stanEmocji = 3; }
+                            else if (em === 'SMUTEK') { klasaUsty = 'emocja-smutek'; stanEmocji = 4; }
+                        }
+
+                        let czystyTekst = odp.replace(/\[.*?\]/g, '').replace(/[*#_`]/g, '').replace(/\s+/g, ' ').trim();
+                        if (czystyTekst.length < 2) czystyTekst = (idzieSpac || idzieCzuwac) ? "Dobranoc!" : "Gotowe!";
+
+                        // Zapis do historii (pomijamy komunikaty techniczne)
+                        if (!pytanie.startsWith("[ZDARZENIE SYSTEMOWE:")) {
+                            historiaRozmowy.push({ role: "user", content: pytanie });
+                        }
+                        historiaRozmowy.push({ role: "assistant", content: czystyTekst });
+                        if (historiaRozmowy.length > 14) historiaRozmowy = historiaRozmowy.slice(-14);
+
+                        if (idzieCzuwac) {
+                            uspijRobota(czystyTekst, true, misjaZAI);
+                        } else if (idzieSpac) {
+                            uspijRobota(czystyTekst, false);
+                        } else {
+                            powiedz(czystyTekst, klasaUsty);
+                        }
+
+                        udaloSie = true;
+                        break;
                     } else {
                         let opis = "";
-                        try {
-                            const errData = await response.json();
-                            opis = errData?.error?.message || "";
-                        } catch (e) {}
+                        try { const errData = await response.json(); opis = errData?.error?.message || ""; } catch (e) {}
                         ostatniBlad = `BŁĄD ${response.status} (${modelId}): ${opis}`;
                         if (modelObslugujeObraz) powodBrakuObrazu = `${modelId}: ${response.status}`;
-
                         if (response.status === 401) {
                             stanSystemuTxt.style.color = "#ff3b30";
                             stanSystemuTxt.innerText = ostatniBlad;
+                            sfx('blad');
                             powiedz("Nieprawidłowy klucz Groq. Sprawdź go w ustawieniach.", "emocja-smutek");
                             return;
                         }
-                        continue;
                     }
                 } catch (e) {
                     ostatniBlad = `BŁĄD SIECI (${modelId}): ${e.message}`;
@@ -729,56 +1754,107 @@ Rozmówca powiedział: ${pytanie}`;
                 aktywneModeleGroq = [];
                 stanSystemuTxt.style.color = "#ff3b30";
                 stanSystemuTxt.innerText = ostatniBlad;
-                powiedz("Żaden model Groq nie odpowiedział. Sprawdź komunikat na ekranie.", "emocja-smutek");
+                sfx('blad');
+                powiedz("Żaden model Groq nie odpowiedział. Sprawdź połączenie lub komunikat na ekranie.", "emocja-smutek");
             }
         }
 
-        let interwalKlapania;
+        // ============================================================
+        // 11. MOWA TTS Z KOLEJKOWANIEM ZDAŃ (BEZ UCINANIA NA MOBILE)
+        // ============================================================
+        function podzielNaZdania(tekst) {
+            const czesci = tekst.match(/[^.!?]+[.!?]*\s*/g) || [tekst];
+            const wynik = [];
+            let bufor = "";
+            for (const c of czesci) {
+                if ((bufor + c).length > 170 && bufor.trim()) {
+                    wynik.push(bufor.trim());
+                    bufor = c;
+                } else {
+                    bufor += c;
+                }
+            }
+            if (bufor.trim()) wynik.push(bufor.trim());
+            return wynik;
+        }
+
         function powiedz(tekst, klasaUsty = 'emocja-neutralny') {
             window.speechSynthesis.cancel();
-            aktualnaWypowiedz = new SpeechSynthesisUtterance(tekst);
-            aktualnaWypowiedz.lang = 'pl-PL'; aktualnaWypowiedz.pitch = 1.1; aktualnaWypowiedz.rate = 0.95;
-            
+            kolejkaZdan = podzielNaZdania(tekst);
             czyMowi = true;
+            aura.className = '';
+            usta.className = `usta ${klasaUsty}`;
+            pokazNapisy(imieRobota || "Robot", tekst);
+
             if (!stanSystemuTxt.innerText.startsWith("BŁĄD")) {
                 stanSystemuTxt.style.color = "#ff3366";
-                stanSystemuTxt.innerText = `${imieRobota || "Robot"} opowiada...`;
+                stanSystemuTxt.innerText = `${imieRobota || "Robot"} mówi (dotknij twarzy, by przerwać)...`;
             }
-            usta.className = `usta ${klasaUsty}`;
-            
-            let przewidywanyCzas = 15000 + (tekst.length * 130);
-            clearTimeout(bezpiecznikTTS);
-            bezpiecznikTTS = setTimeout(() => { if (czyMowi) wymusKoniecMowy(); }, przewidywanyCzas);
+
+            try { rozpoznawanieMowy.stop(); } catch (e) {}
 
             clearInterval(interwalKlapania);
-            let rosnace = true;
-            
+            let krok = 0;
             interwalKlapania = setInterval(() => {
-                rosnace = !rosnace;
-                usta.style.transform = rosnace ? 'scaleY(1.2) scaleX(1.05)' : 'scaleY(0.8) scaleX(0.95)';
-            }, 200);
-            
-            aktualnaWypowiedz.onend = () => { wymusKoniecMowy(); };
-            aktualnaWypowiedz.onerror = () => { wymusKoniecMowy(); };
-            
-            try { rozpoznawanieMowy.stop(); } catch (e) {}
+                krok++;
+                const skalaY = (krok % 2 === 0) ? (1.1 + Math.random() * 0.22) : (0.72 + Math.random() * 0.15);
+                const skalaX = (krok % 2 === 0) ? 1.04 : 0.96;
+                usta.style.transform = `scaleY(${skalaY.toFixed(2)}) scaleX(${skalaX})`;
+            }, 155);
+
+            czytajKolejneZdanie();
+        }
+
+        function czytajKolejneZdanie() {
+            if (kolejkaZdan.length === 0) {
+                wymusKoniecMowy();
+                return;
+            }
+            const fragment = kolejkaZdan.shift();
+            aktualnaWypowiedz = new SpeechSynthesisUtterance(fragment);
+            aktualnaWypowiedz.lang = 'pl-PL';
+            if (preferowanyGlosPL) aktualnaWypowiedz.voice = preferowanyGlosPL;
+            aktualnaWypowiedz.pitch = opcje.pitch;
+            aktualnaWypowiedz.rate = opcje.rate;
+
+            clearTimeout(bezpiecznikTTS);
+            const limit = Math.max(8000, fragment.length * 130 + 4000);
+            bezpiecznikTTS = setTimeout(() => {
+                if (czyMowi) czytajKolejneZdanie();
+            }, limit);
+
+            aktualnaWypowiedz.onend = () => {
+                clearTimeout(bezpiecznikTTS);
+                if (czyMowi) czytajKolejneZdanie();
+            };
+            aktualnaWypowiedz.onerror = () => {
+                clearTimeout(bezpiecznikTTS);
+                if (czyMowi) czytajKolejneZdanie();
+            };
+
             window.speechSynthesis.speak(aktualnaWypowiedz);
         }
 
         function wymusKoniecMowy() {
-            clearTimeout(bezpiecznikTTS); clearInterval(interwalKlapania);
+            clearTimeout(bezpiecznikTTS);
+            clearInterval(interwalKlapania);
+            kolejkaZdan = [];
             usta.style.transform = 'scale(1)';
-            
+
             if (trybAktywny) {
-                stanEmocji = 1; usta.className = 'usta emocja-neutralny';
+                stanEmocji = 1;
+                usta.className = 'usta emocja-neutralny';
+                aura.className = 'slucha';
                 wyslijDoESP(Math.round(glatkiX), Math.round(glatkiY), 1, 1, true);
             } else {
                 usta.className = 'usta spi';
+                aura.className = '';
                 if (trybCzuwaniaNaTwarz) czasStartuCzuwania = Date.now();
                 wymusZamkniecieOczu();
             }
-            
-            czyMowi = false; czasOstatniejAktywnosci = Date.now();
+
+            czyMowi = false;
+            czasOstatniejAktywnosci = Date.now();
             wznowNasluch();
         }
 
@@ -792,7 +1868,7 @@ Rozmówca powiedział: ${pytanie}`;
                     aktualizujStatusSnu();
                 }
             }
-            setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 800);
+            setTimeout(() => { try { rozpoznawanieMowy.start(); } catch (e) {} }, 650);
         }
     </script>
 </body>
